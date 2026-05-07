@@ -3,10 +3,17 @@
 
 a = Analysis(
     ['vocalforge_ktv_studio.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=[
+        'services.task_result',
+        'services.task_runner',
+        'services.ffmpeg_service',
+        'services.download_service',
+        'services.separation_service',
+        'services.environment_service',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
