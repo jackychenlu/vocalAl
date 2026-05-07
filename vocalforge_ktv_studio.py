@@ -13,7 +13,7 @@ from services.separation_service import SeparationService
 from services.environment_service import EnvironmentService
 
 APP_NAME = "VocalForge KTV Studio"
-APP_VERSION = "2.10.1"
+APP_VERSION = "2.11.0"
 APP_DESCRIPTION = "專業人聲分離、YouTube 下載與 KTV 伴唱製作工作台"
 
 # 防止 EXE 遞迴啟動

@@ -7,21 +7,28 @@ VocalForge KTV Studio 是一套 Windows 桌面工具，用於 YouTube 下載、A
 - YouTube 一鍵製作 KTV 影片
 - YouTube MP3 / MP4 純下載
 - 本地音檔批次分離人聲與伴奏
-- 本地影片批次轉 KTV 影片
+- 本地影片批次轉 KTV 影片（支援自動或手動帶入 SRT 字幕）
 - 支援 MKV / MP4 輸出
 - 支援 YouTube CC 字幕下載與封裝
 - 支援 CPU 與 NVIDIA GPU 運算環境
-- 內建環境初始化與修復流程
+- 內建環境初始化與一鍵修復流程
 
 ## 專案結構
 
 ```text
 vocalforge_ktv_studio.py      主程式與 Tkinter GUI
-services/                    可逐步抽離的服務層
-docs/FUNCTION_OVERVIEW.md    功能與架構說明
-update.md                    修復與架構待辦追蹤
-dist/                        PyInstaller 打包輸出
-build/                       PyInstaller 建置中間檔
+VocalForgeKTVStudio.spec      PyInstaller 打包設定
+services/
+  task_result.py              TaskResult 資料類別
+  task_runner.py              任務執行緒生命週期管理
+  ffmpeg_service.py           FFmpeg 操作封裝
+  download_service.py         yt-dlp 下載與字幕處理
+  separation_service.py       audio-separator 執行與音軌整理
+  environment_service.py      可攜式環境部署與 GPU 管理
+docs/
+  CHANGELOG.md                版本記錄
+  FUNCTION_OVERVIEW.md        功能與架構說明
+  TODO.md                     未實作項目追蹤
 ```
 
 ## 開發環境
@@ -42,16 +49,12 @@ py -m pip install --upgrade pyinstaller
 py vocalforge_ktv_studio.py
 ```
 
-快速驗證：
-
-```powershell
-py vocalforge_ktv_studio.py --smoke-test
-```
-
 ## 打包
 
+使用 spec 檔打包（保留 hiddenimports 與路徑設定）：
+
 ```powershell
-py -m PyInstaller --clean --onefile --windowed --name "VocalForgeKTVStudio" "vocalforge_ktv_studio.py"
+py -m PyInstaller --clean VocalForgeKTVStudio.spec
 ```
 
 輸出檔：
@@ -62,7 +65,6 @@ dist/VocalForgeKTVStudio.exe
 
 ## 維護文件
 
-詳細功能流程與維護注意事項請見：
-
-- [docs/FUNCTION_OVERVIEW.md](docs/FUNCTION_OVERVIEW.md)
-- [update.md](update.md)
+- [docs/FUNCTION_OVERVIEW.md](docs/FUNCTION_OVERVIEW.md) — 功能流程與服務架構說明
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — 版本記錄
+- [docs/TODO.md](docs/TODO.md) — 未實作項目追蹤
