@@ -85,6 +85,9 @@ class DownloadService:
         if self._yt_js_runtime_cache is not None:
             return list(self._yt_js_runtime_cache)
 
+        # EJS remote challenge solver — required by yt-dlp for YouTube JS challenges
+        remote_opts = ["--remote-components", "ejs:github"]
+
         runtime_candidates = [
             ("deno", shutil.which("deno")),
             ("node", shutil.which("node")),
@@ -96,17 +99,19 @@ class DownloadService:
 
         for runtime_name, runtime_path in runtime_candidates:
             if runtime_path:
-                self._yt_js_runtime_cache = ["--js-runtimes", f"{runtime_name}:{runtime_path}"]
+                self._yt_js_runtime_cache = [
+                    "--js-runtimes", f"{runtime_name}:{runtime_path}",
+                ] + remote_opts
                 if not self._yt_js_runtime_notice_shown:
-                    self.log(f"  ℹ️ 已啟用 yt-dlp JavaScript runtime：{runtime_name}")
+                    self.log(f"  ℹ️ 已啟用 yt-dlp JavaScript runtime：{runtime_name} + EJS challenge solver")
                     self._yt_js_runtime_notice_shown = True
                 return list(self._yt_js_runtime_cache)
 
-        self._yt_js_runtime_cache = []
+        self._yt_js_runtime_cache = remote_opts
         if not self._yt_js_runtime_notice_shown:
-            self.log("  ⚠️ 未偵測到 deno/node/bun/quickjs；YouTube 字幕或格式清單可能不完整。")
+            self.log("  ⚠️ 未偵測到本地 JS runtime (deno/node/bun)，改用 EJS remote challenge solver。")
             self._yt_js_runtime_notice_shown = True
-        return []
+        return list(self._yt_js_runtime_cache)
 
     # ------------------------------------------------------------------
     # Subtitle helpers
