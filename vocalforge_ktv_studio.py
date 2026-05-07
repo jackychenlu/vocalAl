@@ -1,8 +1,10 @@
+import logging
 import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 import subprocess
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import multiprocessing
 from services.task_result import TaskResult
@@ -100,6 +102,9 @@ class VocalForgeStudioApp:
         self.cancel_event = self.runner.cancel_event
         self._current_process = None
 
+        # 初始化檔案 log（在 Services 前，讓 debug_log 可用）
+        self._file_logger = self._setup_file_logger()
+
         # --- Services ---
         self.ffmpeg_svc = FfmpegService(
             self.bin_dir / "ffmpeg.exe", self.log, self.subp_flags
@@ -113,6 +118,7 @@ class VocalForgeStudioApp:
             cancel_event=self.cancel_event,
             subp_flags=self.subp_flags,
             cookie_browser_fn=lambda: self.cookie_browser_var.get() if hasattr(self, "cookie_browser_var") else "none",
+            debug_log_fn=self.debug_log,
         )
         self.env_svc = EnvironmentService(
             app_dir=self.app_dir,
@@ -885,12 +891,53 @@ class VocalForgeStudioApp:
         self.log_area.insert(tk.END, welcome_text + "\n")
         self.log_area.see(tk.END)
 
+    # ------------------------------------------------------------------
+    # File logger
+    # ------------------------------------------------------------------
+
+    def _setup_file_logger(self) -> logging.Logger:
+        log_dir = self.app_dir / "logs"
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        logger = logging.getLogger("vocalforge")
+        logger.setLevel(logging.DEBUG)
+        if not logger.handlers:
+            try:
+                fh = RotatingFileHandler(
+                    log_dir / "debug.log",
+                    maxBytes=5 * 1024 * 1024,
+                    backupCount=3,
+                    encoding="utf-8",
+                )
+                fh.setFormatter(logging.Formatter(
+                    "%(asctime)s [%(levelname)-5s] %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                ))
+                logger.addHandler(fh)
+            except Exception:
+                pass
+        logger.info("=" * 60)
+        logger.info(f"Session Start: {APP_NAME} {APP_VERSION}")
+        logger.info(f"app_dir: {self.app_dir}")
+        logger.info(f"py_dir : {self.py_dir}")
+        logger.info(f"lib_dir: {self.lib_dir}")
+        return logger
+
+    def debug_log(self, message: str) -> None:
+        """寫入 DEBUG 等級訊息，僅記錄到檔案，不顯示於 GUI。"""
+        if hasattr(self, "_file_logger"):
+            self._file_logger.debug(message)
+
     def log(self, message):
         self.root.after(0, lambda: self._safe_log(message))
 
     def _safe_log(self, message):
         self.log_area.insert(tk.END, message + "\n")
         self.log_area.see(tk.END)
+        if hasattr(self, "_file_logger"):
+            self._file_logger.info(message)
 
     def update_progress(self, percent, text=None):
         self.root.after(0, lambda: self._safe_update_progress(percent, text))

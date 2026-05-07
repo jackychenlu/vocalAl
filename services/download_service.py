@@ -21,11 +21,13 @@ class DownloadService:
         cancel_event,
         subp_flags: int,
         cookie_browser_fn: Callable[[], str],
+        debug_log_fn: Callable | None = None,
     ):
         self.py_dir = py_dir
         self.lib_dir = lib_dir
         self.bin_dir = bin_dir
         self.log = log_fn
+        self.dlog = debug_log_fn or (lambda msg: None)
         self._progress = progress_fn
         self.cancel_event = cancel_event
         self.subp_flags = subp_flags
@@ -110,22 +112,48 @@ class DownloadService:
     # Subtitle helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _clean_srt_file(path: str) -> None:
+    def _clean_srt_file(self, path: str) -> None:
         """Strip YouTube VTT artifacts that survive --convert-subs srt."""
         try:
             raw = Path(path).read_text(encoding="utf-8", errors="replace")
-            # inline word-timing timestamps: <00:00:01.840>
+            size_before = len(raw)
+
+            # --- debug: log raw head before cleaning ---
+            sample_raw = raw[:600].replace("\n", "↵")
+            self.dlog(f"[SRT-RAW ] {Path(path).name}  ({size_before} chars)")
+            self.dlog(f"[SRT-RAW ] head600: {sample_raw}")
+
+            # count artifact types for the report
+            timing_tags = re.findall(r"<\d{2}:\d{2}:\d{2}[.,]\d+>", raw)
+            html_tags   = re.findall(r"<[^>]+>", raw)
+            entities    = re.findall(r"&(?:[a-zA-Z]+|#\d+);", raw)
+
+            # strip inline word-timing timestamps: <00:00:01.840>
             cleaned = re.sub(r"<\d{2}:\d{2}:\d{2}[.,]\d+>", "", raw)
-            # all remaining HTML/XML tags: <c>, </c>, <i>, <b>, <font ...>, etc.
+            # strip all HTML/XML tags: <c>, </c>, <i>, <b>, <font ...>, etc.
             cleaned = re.sub(r"<[^>]+>", "", cleaned)
-            # HTML entities: &amp; &#39; &lt; etc.
+            # decode HTML entities: &amp; &#39; &lt; etc.
             cleaned = _html.unescape(cleaned)
-            # collapse runs of 3+ blank lines to one separator
+            # collapse runs of 3+ blank lines
             cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+
+            size_after = len(cleaned)
+            sample_clean = cleaned.strip()[:600].replace("\n", "↵")
+            self.dlog(
+                f"[SRT-CLEAN] timing×{len(timing_tags)} html×{len(html_tags)} "
+                f"entity×{len(entities)}  {size_before}→{size_after} chars"
+            )
+            self.dlog(f"[SRT-CLEAN] head600: {sample_clean}")
+
+            if timing_tags or html_tags or entities:
+                self.log(
+                    f"  🧹 字幕清洗：timing×{len(timing_tags)} html-tag×{len(html_tags)} "
+                    f"entity×{len(entities)}，{size_before}→{size_after} 字元"
+                )
+
             Path(path).write_text(cleaned.strip() + "\n", encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            self.dlog(f"[SRT-CLEAN] 失敗: {e}")
 
     def normalize_subtitle_filename(self, subtitle_file: str, desired_stem: str) -> str:
         try:
@@ -217,6 +245,8 @@ class DownloadService:
                 "--dump-single-json",
             ] + js_runtime_opts + cookie_opts + [url]
 
+            self.dlog(f"[META-CMD] {' '.join(metadata_cmd)}")
+
             try:
                 result = subprocess.run(
                     metadata_cmd,
@@ -228,15 +258,18 @@ class DownloadService:
                     errors="replace",
                     env=ytdlp_env,
                 )
+                self.dlog(f"[META-RC ] returncode={result.returncode}")
                 if result.returncode != 0 or not result.stdout.strip():
                     err_preview = (result.stderr or result.stdout or "").strip()
                     if err_preview:
+                        self.dlog(f"[META-ERR] {err_preview[:400]}")
                         self.log(f"  ⚠️ 讀取字幕語言清單失敗（代碼 {result.returncode}）：{err_preview[:180]}")
                     return []
 
                 data = json.loads(result.stdout)
                 manual = {k for k in (data.get("subtitles") or {}).keys() if k and k != "live_chat"}
                 auto = {k for k in (data.get("automatic_captions") or {}).keys() if k and k != "live_chat"}
+                self.dlog(f"[META-SUB] manual={sorted(manual)}  auto={sorted(auto)}")
                 ordered: list[str] = []
 
                 def append_lang(lang):
@@ -301,6 +334,8 @@ class DownloadService:
                 "-o", subtitle_out,
             ] + js_runtime_opts + cookie_opts + [url]
 
+            self.dlog(f"[SUB-CMD ] lang={lang}  cmd: {' '.join(cmd)}")
+
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -319,6 +354,7 @@ class DownloadService:
                 line = line.strip()
                 if not line:
                     continue
+                self.dlog(f"[SUB-OUT ] {line}")
                 if any(token in line for token in ["subtitle", "Subtitles", "Writing video subtitles", "Deleting original file"]):
                     self.log(f"    {line}")
                 elif "WARNING" in line.upper():
@@ -329,6 +365,7 @@ class DownloadService:
             process.wait()
             self._current_process = None
             last_return_code = process.returncode
+            self.dlog(f"[SUB-RC  ] lang={lang}  returncode={last_return_code}")
             subtitle_candidates = collect_subtitle_candidates()
 
             if subtitle_candidates:
@@ -507,6 +544,7 @@ class DownloadService:
 
         def run_ytdlp_with_logging(cmd, step_name):
             self.log(f"  > 正在下載 {step_name}...")
+            self.dlog(f"[DL-CMD  ] {step_name}: {' '.join(cmd)}")
             process = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, universal_newlines=True,
@@ -524,6 +562,7 @@ class DownloadService:
                 line = line.strip()
                 if not line:
                     continue
+                self.dlog(f"[DL-OUT  ] {line}")
                 recent_lines.append(line)
                 if len(recent_lines) > 12:
                     recent_lines.pop(0)
@@ -543,6 +582,7 @@ class DownloadService:
                         recent_errors.pop(0)
             process.wait()
             self._current_process = None
+            self.dlog(f"[DL-RC   ] {step_name}: returncode={process.returncode}")
             if process.returncode != 0 and recent_errors:
                 self.log(f"  ⚠️ {step_name} 失敗摘要：{recent_errors[-1][:220]}")
             elif process.returncode != 0 and recent_lines:
@@ -561,21 +601,27 @@ class DownloadService:
 
         # 取得安全短檔名
         safe_name = video_id
+        self.dlog(f"[DL-START] url={url}  video_id={video_id}  mode={mode}  subs={download_subtitles}")
         try:
             ytdlp_env_info = ytdlp_env.copy()
             ytdlp_env_info["PYTHONIOENCODING"] = "utf-8"
+            title_cmd = ytdlp_cmd_base + ["--no-playlist"] + self._get_ytdlp_js_runtime_opts() + ["--print", "%(title)s", url]
+            self.dlog(f"[TITLE-CMD] {' '.join(title_cmd)}")
             title_result = subprocess.run(
-                ytdlp_cmd_base + ["--no-playlist"] + self._get_ytdlp_js_runtime_opts() + ["--print", "%(title)s", url],
+                title_cmd,
                 capture_output=True, text=True, creationflags=self.subp_flags,
                 timeout=30, encoding="utf-8", errors="replace", env=ytdlp_env_info,
             )
+            self.dlog(f"[TITLE-RC ] returncode={title_result.returncode}")
             raw_title = title_result.stdout.strip().splitlines()[0] if title_result.stdout.strip() else ""
             if raw_title:
                 raw_title = raw_title.replace("[", "(").replace("]", ")")
                 safe_name = self.sanitize_filename(raw_title, max_len=80)
+                self.dlog(f"[TITLE   ] raw={raw_title!r}  safe={safe_name!r}")
                 self.log(f"  📝 影片標題: {raw_title}")
                 self.log(f"  📝 安全檔名: {safe_name}")
         except Exception as e:
+            self.dlog(f"[TITLE-ERR] {e}")
             self.log(f"  ⚠️ 取得標題失敗，使用影片 ID 作為檔名: {str(e)}")
 
         if download_subtitles and mode in ["both", "mp4"]:
