@@ -1,3 +1,4 @@
+import html as _html
 import json
 import os
 import re
@@ -108,6 +109,23 @@ class DownloadService:
     # ------------------------------------------------------------------
     # Subtitle helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _clean_srt_file(path: str) -> None:
+        """Strip YouTube VTT artifacts that survive --convert-subs srt."""
+        try:
+            raw = Path(path).read_text(encoding="utf-8", errors="replace")
+            # inline word-timing timestamps: <00:00:01.840>
+            cleaned = re.sub(r"<\d{2}:\d{2}:\d{2}[.,]\d+>", "", raw)
+            # all remaining HTML/XML tags: <c>, </c>, <i>, <b>, <font ...>, etc.
+            cleaned = re.sub(r"<[^>]+>", "", cleaned)
+            # HTML entities: &amp; &#39; &lt; etc.
+            cleaned = _html.unescape(cleaned)
+            # collapse runs of 3+ blank lines to one separator
+            cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+            Path(path).write_text(cleaned.strip() + "\n", encoding="utf-8")
+        except Exception:
+            pass
 
     def normalize_subtitle_filename(self, subtitle_file: str, desired_stem: str) -> str:
         try:
@@ -317,6 +335,7 @@ class DownloadService:
                 if process.returncode != 0:
                     self.log("  ⚠️ 字幕下載程序部分失敗，但已找到可用字幕檔，將直接採用。")
                 selected = subtitle_candidates[0]
+                self._clean_srt_file(str(selected))
                 self.log(f"  ✅ 已找到字幕檔：{selected.name}")
                 return str(selected)
 
@@ -350,6 +369,7 @@ class DownloadService:
         if not selected:
             selected = subtitle_candidates[0]
 
+        self._clean_srt_file(str(selected))
         self.log(f"  ✅ 已找到字幕檔：{selected.name}")
         return str(selected)
 
