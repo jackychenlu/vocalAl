@@ -156,7 +156,7 @@ class DownloadService:
                     f"entity×{len(entities)}，{size_before}→{size_after} 字元"
                 )
 
-            Path(path).write_text(cleaned.strip() + "\n", encoding="utf-8")
+            Path(path).write_text(cleaned.strip() + "\n", encoding="utf-8-sig")
         except Exception as e:
             self.dlog(f"[SRT-CLEAN] 失敗: {e}")
 

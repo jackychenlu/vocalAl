@@ -1,5 +1,6 @@
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -7,21 +8,71 @@ from services.task_result import TaskResult
 
 
 class FfmpegService:
-    def __init__(self, ffmpeg_exe: Path, log_fn: Callable, subp_flags: int = 0):
+    def __init__(
+        self,
+        ffmpeg_exe: Path,
+        log_fn: Callable,
+        subp_flags: int = 0,
+        debug_log_fn: Callable | None = None,
+    ):
         self.ffmpeg_exe = ffmpeg_exe
         self.log = log_fn
         self.subp_flags = subp_flags
+        self.dlog = debug_log_fn if debug_log_fn is not None else lambda msg: None
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _run(self, cmd: list[str], label: str) -> subprocess.CompletedProcess:
+        """Run an FFmpeg command, capturing stderr so errors are never silently lost."""
+        safe_parts = []
+        for x in cmd:
+            if " " in x or "=" in x or "," in x:
+                safe_parts.append(f'"{x}"')
+            else:
+                safe_parts.append(x)
+        self.dlog(f"[{label}-CMD] " + " ".join(safe_parts))
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=self.subp_flags,
+        )
+        for line in result.stderr.splitlines():
+            if line.strip():
+                self.dlog(f"[{label}-FF ] {line}")
+        self.dlog(f"[{label}-RC ] {result.returncode}")
+        return result
+
+    def _write_audio_metadata_file(self, titles: list[str]) -> str | None:
+        """Write audio stream titles to a UTF-8 ffmetadata file; returns temp path or None."""
+        try:
+            fd, path = tempfile.mkstemp(suffix=".txt", prefix="ffmeta_")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(";FFMETADATA1\n")
+            return path
+        except Exception as e:
+            self.dlog(f"[META-FILE] failed to create temp file: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def extract_audio(self, video_path: str, output_mp3: str) -> TaskResult:
         cmd = [
             str(self.ffmpeg_exe), "-y", "-i", str(video_path),
             "-vn", "-acodec", "libmp3lame", "-ab", "320k", str(output_mp3),
         ]
-        try:
-            subprocess.run(cmd, check=True, creationflags=self.subp_flags)
-            return TaskResult(success=True, path=str(output_mp3))
-        except Exception as e:
-            return TaskResult(success=False, error=str(e))
+        result = self._run(cmd, "AUDIO")
+        if result.returncode != 0:
+            err = result.stderr.strip()[-200:]
+            return TaskResult(success=False, error=err or f"exit {result.returncode}")
+        return TaskResult(success=True, path=str(output_mp3))
 
     def merge_stems(self, stems: list[str], output: str) -> TaskResult:
         n = len(stems)
@@ -33,11 +84,11 @@ class FfmpegService:
         cmd = [str(self.ffmpeg_exe), "-y"] + inputs + [
             "-filter_complex", filter_str, "-map", "[out]", "-b:a", "320k", str(output),
         ]
-        try:
-            subprocess.run(cmd, check=True, creationflags=self.subp_flags)
-            return TaskResult(success=True, path=str(output))
-        except Exception as e:
-            return TaskResult(success=False, error=str(e))
+        result = self._run(cmd, "MERGE")
+        if result.returncode != 0:
+            err = result.stderr.strip()[-200:]
+            return TaskResult(success=False, error=err or f"exit {result.returncode}")
+        return TaskResult(success=True, path=str(output))
 
     def build_ktv_video(
         self,
@@ -63,10 +114,18 @@ class FfmpegService:
             self.log("🎚️ 目前為左伴唱／右人聲模式，混合比例設定不套用於此模式。")
         if force_1080p:
             self.log("🖼️ 已啟用強制等比輸出 1080p，必要時會補黑邊。")
-        if subtitle and os.path.exists(subtitle):
-            self.log(f"💬 將自動封裝 YouTube CC 字幕：{os.path.basename(subtitle)}")
+
+        # Validate subtitle path
+        if subtitle:
+            if os.path.exists(subtitle):
+                self.log(f"💬 將自動封裝 YouTube CC 字幕：{os.path.basename(subtitle)}")
+                self.dlog(f"[KTV-SUB ] path={subtitle}  size={os.path.getsize(subtitle)}")
+            else:
+                self.dlog(f"[KTV-SUB ] subtitle path NOT FOUND, skipping: {subtitle}")
+                self.log(f"  ⚠️ 字幕檔不存在，跳過封裝：{subtitle}")
+                subtitle = None
         else:
-            subtitle = None
+            self.dlog("[KTV-SUB ] no subtitle (None)")
 
         missing = []
         if not os.path.exists(video):
@@ -108,8 +167,9 @@ class FfmpegService:
                 "-metadata:s:a:1", "title=伴唱 (純伴奏)",
             ]
 
-        # Dynamic subtitle index: count -i flags already in cmd
+        # Count -i flags now to get correct subtitle input index
         subtitle_input_index = sum(1 for x in cmd if x == "-i")
+        self.dlog(f"[KTV-SUB ] subtitle_input_index={subtitle_input_index}  has_subtitle={bool(subtitle)}")
 
         if subtitle:
             cmd += ["-i", str(subtitle)]
@@ -143,10 +203,13 @@ class FfmpegService:
 
         cmd += [str(output)]
 
-        try:
-            subprocess.run(cmd, check=True, creationflags=self.subp_flags)
-            self.log(f"  ✅ {vfmt} 合成完成: {os.path.basename(output)}")
-            return TaskResult(success=True, path=str(output))
-        except Exception as e:
-            self.log(f"  ❌ {vfmt} 合成出錯: {str(e)}")
-            return TaskResult(success=False, error=str(e))
+        result = self._run(cmd, "KTV")
+        if result.returncode != 0:
+            # Surface the last meaningful FFmpeg error line
+            err_lines = [l for l in result.stderr.splitlines() if l.strip()]
+            err_msg = err_lines[-1] if err_lines else f"exit code {result.returncode}"
+            self.log(f"  ❌ {vfmt} 合成出錯: {err_msg[:200]}")
+            return TaskResult(success=False, error=err_msg)
+
+        self.log(f"  ✅ {vfmt} 合成完成: {os.path.basename(output)}")
+        return TaskResult(success=True, path=str(output))

@@ -3,6 +3,7 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+import customtkinter as ctk
 import subprocess
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -30,7 +31,7 @@ class VocalForgeStudioApp:
         self.root = root
         self.version = APP_VERSION
         self.root.title(f"{APP_NAME} {self.version}")
-        self.root.geometry("880x750")
+        self.root.geometry("1040x1060")
         
         # 取得執行路徑 (EXE 所在目錄)
         # 注意：PyInstaller onefile 模式下 sys.executable 指向 EXE 本身（正確）
@@ -107,7 +108,8 @@ class VocalForgeStudioApp:
 
         # --- Services ---
         self.ffmpeg_svc = FfmpegService(
-            self.bin_dir / "ffmpeg.exe", self.log, self.subp_flags
+            self.bin_dir / "ffmpeg.exe", self.log, self.subp_flags,
+            debug_log_fn=self.debug_log,
         )
         self.dl_svc = DownloadService(
             py_dir=self.py_dir,
@@ -154,21 +156,373 @@ class VocalForgeStudioApp:
         # 啟動時自動檢查
         self.root.after(500, lambda: self.env_svc.check_components(prompt=False))
 
+    def _setup_theme(self):
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("blue")
+        self.ui = {
+            "bg": "#F2F2F7",
+            "surface": "#FFFFFF",
+            "surface_soft": "#F9F9FB",
+            "border": "#D1D1D6",
+            "text": "#1C1C1E",
+            "muted": "#6E6E73",
+            "hint": "#8E8E93",
+            "ink": "#1C1C1E",
+            "ink_soft": "#E5F1FF",
+            "primary": "#007AFF",
+            "primary_hover": "#0066D6",
+            "success": "#007AFF",
+            "success_hover": "#0066D6",
+            "danger": "#007AFF",
+            "danger_hover": "#0066D6",
+            "warning": "#007AFF",
+            "warning_hover": "#0066D6",
+            "purple": "#007AFF",
+            "purple_hover": "#0066D6",
+            "pink": "#007AFF",
+            "pink_hover": "#0066D6",
+            "console": "#F9F9FB",
+            "console_text": "#1C1C1E",
+        }
+        self.fonts = {
+            "title": ("Segoe UI", 22, "bold"),
+            "section": ("Segoe UI", 11, "bold"),
+            "body": ("Segoe UI", 9),
+            "body_bold": ("Segoe UI", 9, "bold"),
+            "small": ("Segoe UI", 8),
+            "button": ("Segoe UI", 9, "bold"),
+            "primary_button": ("Segoe UI", 9, "bold"),
+            "mono": ("Consolas", 9),
+        }
+        self.root.configure(bg=self.ui["bg"])
+        self.root.geometry("1040x1060")
+        self.root.minsize(960, 1000)
+
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure("TNotebook", background=self.ui["surface"], borderwidth=0, tabmargins=(0, 0, 0, 10))
+        style.configure(
+            "TNotebook.Tab",
+            background=self.ui["surface_soft"],
+            foreground=self.ui["muted"],
+            padding=(16, 9),
+            font=self.fonts["body_bold"],
+            borderwidth=0,
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", self.ui["primary"]), ("active", "#E5F1FF")],
+            foreground=[("selected", "#FFFFFF"), ("active", self.ui["text"])],
+        )
+        style.configure(
+            "Horizontal.TProgressbar",
+            troughcolor=self.ui["surface_soft"],
+            background=self.ui["primary"],
+            bordercolor=self.ui["border"],
+            lightcolor=self.ui["primary"],
+            darkcolor=self.ui["primary"],
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=self.ui["surface"],
+            background=self.ui["surface"],
+            foreground=self.ui["text"],
+            arrowcolor=self.ui["muted"],
+            bordercolor=self.ui["border"],
+            padding=(6, 4),
+        )
+
+    def _style_button(self, button, normal_bg=None, hover_bg=None, fg="white", primary=False):
+        normal_bg = self.ui["primary"]
+        hover_bg = self.ui["primary_hover"]
+        font = self.fonts["button"]
+        if isinstance(button, ctk.CTkButton):
+            button.configure(
+                fg_color=normal_bg,
+                hover_color=hover_bg,
+                text_color=fg,
+                font=font,
+                corner_radius=14,
+                height=34,
+            )
+        else:
+            button.configure(
+                bg=normal_bg,
+                fg=fg,
+                activebackground=hover_bg,
+                activeforeground=fg,
+                disabledforeground="#A0A8B5",
+                relief=tk.FLAT,
+                bd=0,
+                highlightthickness=0,
+                cursor="hand2",
+                font=font,
+                padx=12,
+                pady=7,
+            )
+        button._vf_normal_bg = normal_bg
+        button._vf_hover_bg = hover_bg
+
+        if not isinstance(button, ctk.CTkButton) and not getattr(button, "_vf_hover_bound", False):
+            def _enter(_event, widget=button):
+                if str(widget.cget("state")) != tk.DISABLED:
+                    widget.configure(bg=getattr(widget, "_vf_hover_bg", hover_bg))
+
+            def _leave(_event, widget=button):
+                widget.configure(bg=getattr(widget, "_vf_normal_bg", normal_bg))
+
+            button.bind("<Enter>", _enter, add="+")
+            button.bind("<Leave>", _leave, add="+")
+            button._vf_hover_bound = True
+
+    def _set_action_button(self, text, normal_bg, hover_bg):
+        self.start_btn.configure(text=text)
+        self._style_button(self.start_btn, normal_bg, hover_bg, primary=True)
+
+    def _toggle_settings_panel(self, force=None):
+        if force is None:
+            next_state = not self.settings_expanded.get()
+        else:
+            next_state = bool(force)
+        self.settings_expanded.set(next_state)
+        if next_state:
+            self.settings_dropdown.pack(fill=tk.X, pady=(8, 0))
+            self.settings_toggle_btn.configure(text="收合")
+        else:
+            self.settings_dropdown.pack_forget()
+            self.settings_toggle_btn.configure(text="展開")
+
+    def index(self, target):
+        if target == "current":
+            if hasattr(self, "tabview") and hasattr(self, "tab_names"):
+                return self.tab_names.index(self.tabview.get())
+            return getattr(self, "current_tab_index", 0)
+        raise tk.TclError(f"unsupported index target: {target}")
+
+    def _handle_ctk_tab_changed(self):
+        tab_name = self.tabview.get()
+        self.current_tab_index = self.tab_names.index(tab_name)
+        self.on_tab_changed(None)
+
+    def _polish_widget_tree(self, widget):
+        bg = self.ui["bg"]
+        surface = self.ui["surface"]
+        if isinstance(widget, (tk.Frame, tk.LabelFrame)):
+            widget.configure(bg=surface if widget is not self.root else bg)
+            if isinstance(widget, tk.LabelFrame):
+                widget.configure(
+                    fg=self.ui["text"],
+                    font=self.fonts["body_bold"],
+                    bd=1,
+                    relief=tk.SOLID,
+                    highlightbackground=self.ui["border"],
+                    highlightcolor=self.ui["border"],
+                )
+        elif isinstance(widget, tk.Label):
+            current_fg = str(widget.cget("fg"))
+            fg = self.ui["hint"] if current_fg in ("gray", "#666", "#555") else self.ui["text"]
+            widget.configure(bg=widget.master.cget("bg"), fg=fg, font=self.fonts["body"])
+        elif isinstance(widget, (tk.Radiobutton, tk.Checkbutton)):
+            widget.configure(
+                bg=widget.master.cget("bg"),
+                fg=self.ui["text"],
+                activebackground=widget.master.cget("bg"),
+                activeforeground=self.ui["primary"],
+                selectcolor=self.ui["surface"],
+                font=self.fonts["body"],
+                bd=0,
+                highlightthickness=0,
+                cursor="hand2",
+            )
+        elif isinstance(widget, ttk.Combobox):
+            pass
+        elif isinstance(widget, tk.Entry):
+            widget.configure(
+                bg=self.ui["surface"],
+                fg=self.ui["text"],
+                insertbackground=self.ui["primary"],
+                relief=tk.SOLID,
+                bd=1,
+                highlightthickness=1,
+                highlightbackground=self.ui["border"],
+                highlightcolor=self.ui["primary"],
+                font=self.fonts["body"],
+            )
+        elif isinstance(widget, tk.Listbox):
+            widget.configure(
+                bg=self.ui["surface"],
+                fg=self.ui["text"],
+                selectbackground="#DBEAFE",
+                selectforeground=self.ui["text"],
+                relief=tk.SOLID,
+                bd=1,
+                highlightthickness=1,
+                highlightbackground=self.ui["border"],
+                highlightcolor=self.ui["primary"],
+                font=self.fonts["body"],
+                activestyle="none",
+            )
+        elif isinstance(widget, tk.Scrollbar):
+            widget.configure(bg=self.ui["surface_soft"], activebackground=self.ui["border"], troughcolor=self.ui["bg"])
+        elif isinstance(widget, tk.Scale):
+            widget.configure(
+                bg=widget.master.cget("bg"),
+                fg=self.ui["text"],
+                activebackground=self.ui["primary"],
+                troughcolor=self.ui["surface_soft"],
+                highlightthickness=0,
+                bd=0,
+                font=self.fonts["small"],
+            )
+        elif isinstance(widget, tk.Button):
+            bg_color = str(widget.cget("bg"))
+            palette = {
+                "#4CAF50": (self.ui["success"], self.ui["success_hover"]),
+                "#F44336": (self.ui["danger"], self.ui["danger_hover"]),
+                "#2196F3": (self.ui["primary"], self.ui["primary_hover"]),
+                "#FF9800": (self.ui["warning"], self.ui["warning_hover"]),
+                "#E91E63": (self.ui["pink"], self.ui["pink_hover"]),
+                "#9C27B0": (self.ui["purple"], self.ui["purple_hover"]),
+            }
+            if bg_color in palette:
+                normal, hover = palette[bg_color]
+                self._style_button(widget, normal, hover, primary=(widget is getattr(self, "start_btn", None)))
+            else:
+                self._style_button(widget, self.ui["surface_soft"], "#E4EBF4", fg=self.ui["text"])
+
+        for child in widget.winfo_children():
+            self._polish_widget_tree(child)
+
+    def _polish_ui(self):
+        self._polish_widget_tree(self.root)
+        self.header_frame.configure(bg=self.ui["bg"])
+        for child in self.header_frame.winfo_children():
+            child.configure(bg=self.ui["bg"])
+            for grandchild in child.winfo_children():
+                grandchild.configure(bg=self.ui["bg"])
+                for item in grandchild.winfo_children():
+                    item.configure(bg=self.ui["bg"])
+        self.header_title.configure(bg=self.ui["bg"], fg=self.ui["text"], font=self.fonts["title"])
+        self.header_subtitle.configure(bg=self.ui["bg"], fg=self.ui["muted"], font=self.fonts["body"])
+        self.header_badge.configure(bg=self.ui["ink_soft"], fg=self.ui["primary"], font=self.fonts["small"])
+        self.workspace_frame.configure(
+            bg=self.ui["surface"],
+            highlightbackground=self.ui["border"],
+            highlightcolor=self.ui["border"],
+            highlightthickness=1,
+        )
+        self.main_frame.configure(bg=self.ui["bg"])
+        self.settings_frame.configure(
+            bg=self.ui["surface"],
+            highlightbackground=self.ui["border"],
+            highlightcolor=self.ui["border"],
+            highlightthickness=1,
+        )
+        self.settings_dropdown.configure(bg=self.ui["surface"])
+        self.settings_canvas.configure(bg=self.ui["surface"])
+        self.settings_scrollbar.configure(bg=self.ui["surface_soft"], activebackground=self.ui["border"], troughcolor=self.ui["surface"])
+        self.settings_body.configure(bg=self.ui["surface"])
+        self.settings_title.configure(font=self.fonts["section"], fg=self.ui["text"], bg=self.ui["surface"])
+        self.settings_subtitle.configure(font=self.fonts["small"], fg=self.ui["muted"], bg=self.ui["surface"])
+        self.action_frame.configure(
+            bg=self.ui["surface"],
+            highlightbackground=self.ui["border"],
+            highlightcolor=self.ui["border"],
+            highlightthickness=1,
+        )
+        self.status_frame.configure(bg=self.ui["bg"])
+        self.log_frame.configure(
+            bg=self.ui["surface"],
+            highlightbackground=self.ui["border"],
+            highlightcolor=self.ui["border"],
+            highlightthickness=1,
+        )
+        self.log_label.configure(font=self.fonts["section"], fg=self.ui["text"], bg=self.ui["surface"])
+        self.log_area.configure(
+            font=self.fonts["mono"],
+            bg=self.ui["console"],
+            fg=self.ui["console_text"],
+            insertbackground=self.ui["primary"],
+            relief=tk.FLAT,
+            bd=0,
+            padx=12,
+            pady=10,
+        )
+        self.progress_text.configure(font=self.fonts["small"], fg=self.ui["muted"], bg=self.ui["bg"])
+        self.status_label.configure(font=self.fonts["body_bold"], bg=self.ui["bg"])
+        self.refresh_start_button_text()
+
     def setup_ui(self):
-        tk.Label(self.root, text=f"{APP_NAME} {self.version}", font=("Arial", 16, "bold")).pack(pady=10)
-        tk.Label(self.root, text=APP_DESCRIPTION, fg="#555", font=("Arial", 9)).pack(pady=(0, 6))
+        self._setup_theme()
+        self.header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.header_frame.pack(fill=tk.X)
+        header_inner = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        header_inner.pack(fill=tk.X, padx=28, pady=(22, 14))
+        header_text = ctk.CTkFrame(header_inner, fg_color="transparent")
+        header_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.header_title = ctk.CTkLabel(
+            header_text,
+            text=f"{APP_NAME} {self.version}",
+            font=self.fonts["title"],
+            text_color=self.ui["text"],
+        )
+        self.header_title.pack(anchor=tk.W)
+        self.header_subtitle = ctk.CTkLabel(
+            header_text,
+            text=APP_DESCRIPTION,
+            text_color=self.ui["muted"],
+            font=self.fonts["body"],
+        )
+        self.header_subtitle.pack(anchor=tk.W, pady=(2, 0))
+        self.header_badge = ctk.CTkLabel(
+            header_inner,
+            text="LOCAL AI WORKBENCH",
+            font=self.fonts["small"],
+            text_color=self.ui["primary"],
+            fg_color=self.ui["ink_soft"],
+            corner_radius=14,
+            width=140,
+            height=28,
+        )
+        self.header_badge.pack(side=tk.RIGHT)
+
+        self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.main_frame.pack(fill=tk.X, padx=24, pady=(6, 10), expand=False)
         
         # 使用 Notebook 分組功能
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(pady=5, fill=tk.BOTH, padx=20, expand=False)
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        self.workspace_frame = ctk.CTkFrame(
+            self.main_frame,
+            fg_color=self.ui["surface"],
+            corner_radius=20,
+            border_width=1,
+            border_color=self.ui["border"],
+        )
+        self.workspace_frame.pack(fill=tk.X)
+        self.current_tab_index = 0
+        self.tab_names = ["YouTube 一鍵轉 KTV", "YouTube 下載", "本地影片轉 KTV", "本地音檔分離"]
+        self.notebook = self
+        self.tabview = ctk.CTkTabview(
+            self.workspace_frame,
+            fg_color=self.ui["surface"],
+            corner_radius=18,
+            segmented_button_fg_color=self.ui["surface_soft"],
+            segmented_button_selected_color=self.ui["primary"],
+            segmented_button_selected_hover_color=self.ui["primary_hover"],
+            segmented_button_unselected_color=self.ui["surface_soft"],
+            segmented_button_unselected_hover_color="#E5F1FF",
+            text_color=self.ui["text"],
+            command=self._handle_ctk_tab_changed,
+        )
+        self.tabview.pack(fill=tk.BOTH, expand=True, padx=14, pady=14)
 
         # --- Tab 1: YouTube 轉 MKV ---
-        yt_tab = tk.Frame(self.notebook, padx=10, pady=10)
-        self.notebook.add(yt_tab, text=" 📺 YouTube 一鍵轉 KTV ")
+        yt_tab = self.tabview.add(self.tab_names[0])
         
         tk.Label(yt_tab, text="YouTube 網址:").pack(side=tk.LEFT)
-        self.yt_entry = tk.Entry(yt_tab, textvariable=self.yt_url_var)
+        self.yt_entry = ctk.CTkEntry(yt_tab, textvariable=self.yt_url_var, height=34, corner_radius=16)
         self.yt_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         self.yt_entry.bind("<Button-1>", self.quick_paste_url)
         
@@ -176,15 +530,14 @@ class VocalForgeStudioApp:
         tk.Label(yt_tab, text="(點擊輸入框自動貼上剪貼簿網址)", fg="gray", font=("Arial", 8)).pack(side=tk.BOTTOM, anchor=tk.W, padx=(85, 0))
 
         # --- Tab 2: YouTube 純下載 ---
-        yt_dl_tab = tk.Frame(self.notebook, padx=10, pady=5)
-        self.notebook.add(yt_dl_tab, text=" 📥 YouTube 下載 (MP3/MP4) ")
+        yt_dl_tab = self.tabview.add(self.tab_names[1])
 
         # 第一列：網址輸入（Tab 2 獨立變數，不影響 Tab 1）
         dl_url_row = tk.Frame(yt_dl_tab)
         dl_url_row.pack(fill=tk.X, pady=2)
         tk.Label(dl_url_row, text="YouTube 網址:").pack(side=tk.LEFT)
         self.yt_dl_url_var = tk.StringVar()
-        self.yt_dl_entry = tk.Entry(dl_url_row, textvariable=self.yt_dl_url_var)
+        self.yt_dl_entry = ctk.CTkEntry(dl_url_row, textvariable=self.yt_dl_url_var, height=34, corner_radius=16)
         self.yt_dl_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         self.yt_dl_entry.bind("<Button-1>", self.quick_paste_dl_url)
         tk.Label(dl_url_row, text="(點擊自動貼上)", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT)
@@ -210,12 +563,14 @@ class VocalForgeStudioApp:
         dl_sep_toggle_row = tk.Frame(yt_dl_tab)
         dl_sep_toggle_row.pack(fill=tk.X, pady=(4, 0))
         self.dl_do_separate_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
+        ctk.CTkCheckBox(
             dl_sep_toggle_row,
             text="下載後進行 AI 音訊分離（人聲／伴奏）",
             variable=self.dl_do_separate_var,
             command=self._toggle_dl_separate_options,
-            font=("Arial", 9, "bold")
+            font=self.fonts["body_bold"],
+            checkbox_width=18,
+            checkbox_height=18,
         ).pack(side=tk.LEFT)
 
         # 音訊分離選項區（預設隱藏）
@@ -243,12 +598,11 @@ class VocalForgeStudioApp:
             "htdemucs.yaml (Demucs - 4音軌高品質分離)",
             "htdemucs_ft.yaml (Demucs - 流行樂優化)",
         ]
-        ttk.Combobox(sep_model_row, textvariable=self.dl_sep_model_var,
-                     values=dl_model_options, state="readonly", width=42).pack(side=tk.LEFT, padx=5)
+        ctk.CTkComboBox(sep_model_row, variable=self.dl_sep_model_var,
+                        values=dl_model_options, state="readonly", width=420, corner_radius=16).pack(side=tk.LEFT, padx=5)
 
         # --- Tab 3: 本地影片轉 MKV ---
-        local_v_tab = tk.Frame(self.notebook, padx=10, pady=5)
-        self.notebook.add(local_v_tab, text=" 🎬 本地影片轉 KTV ")
+        local_v_tab = self.tabview.add(self.tab_names[2])
 
         # 字幕列先 pack (side=BOTTOM)，讓 v_top_frame expand 時能正確撐滿剩餘空間
         v_sub_row = tk.Frame(local_v_tab)
@@ -271,22 +625,21 @@ class VocalForgeStudioApp:
         v_btn_frame = tk.Frame(v_top_frame)
         v_btn_frame.pack(side=tk.RIGHT, padx=5, fill=tk.Y)
         self.v_list = []
-        tk.Button(v_btn_frame, text="加入影片", command=self.browse_local_video, width=10).pack(pady=2)
-        tk.Button(v_btn_frame, text="加入資料夾", command=self.browse_local_v_folder, width=10).pack(pady=2)
-        tk.Button(v_btn_frame, text="移除選取", command=self.remove_selected_v, width=10).pack(pady=2)
-        tk.Button(v_btn_frame, text="清除清單", command=self.clear_v_list, width=10).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="加入影片", command=self.browse_local_video, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="加入資料夾", command=self.browse_local_v_folder, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="移除選取", command=self.remove_selected_v, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="清除清單", command=self.clear_v_list, width=96, height=30, corner_radius=14).pack(pady=2)
 
         # 字幕導入列
         tk.Label(v_sub_row, text="字幕檔:").pack(side=tk.LEFT)
         self.local_subtitle_var = tk.StringVar()
-        tk.Entry(v_sub_row, textvariable=self.local_subtitle_var).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        tk.Button(v_sub_row, text="選擇 SRT", command=self.browse_local_subtitle, width=9).pack(side=tk.LEFT)
-        tk.Button(v_sub_row, text="清除", command=lambda: self.local_subtitle_var.set(""), width=5).pack(side=tk.LEFT, padx=3)
+        ctk.CTkEntry(v_sub_row, textvariable=self.local_subtitle_var, height=32, corner_radius=16).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+        ctk.CTkButton(v_sub_row, text="選擇 SRT", command=self.browse_local_subtitle, width=86, height=30, corner_radius=14).pack(side=tk.LEFT)
+        ctk.CTkButton(v_sub_row, text="清除", command=lambda: self.local_subtitle_var.set(""), width=58, height=30, corner_radius=14).pack(side=tk.LEFT, padx=3)
         tk.Label(v_sub_row, text="（空白則自動比對影片同名 .srt）", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=4)
 
         # --- Tab 4: 本地檔案分離 ---
-        file_tab = tk.Frame(self.notebook, padx=10, pady=10)
-        self.notebook.add(file_tab, text=" 🎵 本地音檔批量分離 ")
+        file_tab = self.tabview.add(self.tab_names[3])
         
         file_list_frame = tk.Frame(file_tab)
         file_list_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
@@ -301,24 +654,42 @@ class VocalForgeStudioApp:
         
         file_btn_frame = tk.Frame(file_tab)
         file_btn_frame.pack(side=tk.RIGHT, padx=5, fill=tk.Y)
-        tk.Button(file_btn_frame, text="加入檔案", command=self.browse_file, width=10).pack(pady=2)
-        tk.Button(file_btn_frame, text="移除選取", command=self.remove_selected_file, width=10).pack(pady=2)
-        tk.Button(file_btn_frame, text="清除清單", command=self.clear_files, width=10).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="加入檔案", command=self.browse_file, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="移除選取", command=self.remove_selected_file, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="清除清單", command=self.clear_files, width=96, height=30, corner_radius=14).pack(pady=2)
         
-        # --- 設定區 (簡化版) ---
-        settings_frame = tk.LabelFrame(self.root, text="核心設定", padx=10, pady=10)
-        settings_frame.pack(pady=5, fill=tk.X, padx=20)
+        # --- 設定區 ---
+        self.settings_expanded = tk.BooleanVar(value=False)
+        self.settings_frame = ctk.CTkFrame(
+            self.main_frame,
+            fg_color=self.ui["surface"],
+            corner_radius=20,
+            border_width=1,
+            border_color=self.ui["border"],
+        )
+        self.settings_frame.pack(fill=tk.X, pady=(10, 0))
+        settings_frame = self.settings_frame
+        settings_header = ctk.CTkFrame(settings_frame, fg_color="transparent")
+        settings_header.pack(fill=tk.X, padx=16, pady=12)
+        self.settings_title = ctk.CTkLabel(settings_header, text="核心設定", font=self.fonts["section"], text_color=self.ui["text"])
+        self.settings_title.pack(side=tk.LEFT)
+        self.settings_subtitle = ctk.CTkLabel(settings_header, text="模型、輸出、字幕與運算環境", text_color=self.ui["muted"], font=self.fonts["small"])
+        self.settings_subtitle.pack(side=tk.LEFT, padx=(10, 0))
+        self.settings_toggle_btn = ctk.CTkButton(settings_header, text="展開", command=self._toggle_settings_panel, width=72, height=30, corner_radius=14)
+        self.settings_toggle_btn.pack(side=tk.RIGHT)
+        self.settings_dropdown = ctk.CTkScrollableFrame(settings_frame, fg_color=self.ui["surface"], height=118, corner_radius=0)
+        self.settings_body = self.settings_dropdown
         
         # 輸出目錄
-        out_row = tk.Frame(settings_frame)
+        out_row = tk.Frame(self.settings_body)
         out_row.pack(fill=tk.X, pady=2)
         self.output_dir_var = tk.StringVar(value=str(self.app_dir / "output"))
         tk.Label(out_row, text="輸出目錄:").pack(side=tk.LEFT)
-        tk.Entry(out_row, textvariable=self.output_dir_var).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        tk.Button(out_row, text="瀏覽", command=self.browse_output_dir).pack(side=tk.RIGHT)
+        ctk.CTkEntry(out_row, textvariable=self.output_dir_var, height=32, corner_radius=16).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+        ctk.CTkButton(out_row, text="瀏覽", command=self.browse_output_dir, width=72, height=30, corner_radius=14).pack(side=tk.RIGHT)
         
         # Cookie 設定列（防止 YouTube 429 封鎖）
-        cookie_row = tk.Frame(settings_frame)
+        cookie_row = tk.Frame(self.settings_body)
         cookie_row.pack(fill=tk.X, pady=2)
         tk.Label(cookie_row, text="YouTube Cookie:").pack(side=tk.LEFT)
         self.cookie_browser_var = tk.StringVar(value="none")
@@ -330,7 +701,7 @@ class VocalForgeStudioApp:
         tk.Label(cookie_row, text="← 遇到 429 封鎖時，選擇你目前登入 YouTube 的瀏覽器", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=6)
 
         # 運算裝置與去噪
-        self.opt_row = tk.Frame(settings_frame)
+        self.opt_row = tk.Frame(self.settings_body)
         opt_row = self.opt_row
         opt_row.pack(fill=tk.X, pady=5)
         
@@ -339,11 +710,10 @@ class VocalForgeStudioApp:
         tk.Radiobutton(opt_row, text="CPU", variable=self.device_var, value="cpu").pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(opt_row, text="GPU (NVIDIA)", variable=self.device_var, value="gpu").pack(side=tk.LEFT, padx=5)
         
-        tk.Button(opt_row, text="🔍 檢測 GPU 環境", command=self.check_gpu_env, 
-                  font=("Arial", 9), bg="#FF9800", fg="white").pack(side=tk.LEFT, padx=10)
+        ctk.CTkButton(opt_row, text="檢測 GPU 環境", command=self.check_gpu_env, width=116, height=30, corner_radius=14).pack(side=tk.LEFT, padx=10)
         
         self.denoise_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(opt_row, text="啟用 AI 去噪 (推薦)", variable=self.denoise_var).pack(side=tk.RIGHT, padx=10)
+        ctk.CTkCheckBox(opt_row, text="啟用 AI 去噪", variable=self.denoise_var, checkbox_width=18, checkbox_height=18).pack(side=tk.RIGHT, padx=10)
 
         # 隱藏但保留變數以維持邏輯相容
         self.overlap_var = tk.DoubleVar(value=0.5)
@@ -359,7 +729,7 @@ class VocalForgeStudioApp:
         self.audio_track_mode_var = tk.StringVar(value="dual")
         
         # 輸出格式與模型
-        self.format_row = tk.Frame(settings_frame)
+        self.format_row = tk.Frame(self.settings_body)
         format_row = self.format_row
         format_row.pack(fill=tk.X, pady=2)
         
@@ -373,9 +743,9 @@ class VocalForgeStudioApp:
             "htdemucs_ft.yaml (Demucs - 流行樂優化)",
             "htdemucs_6s.yaml (Demucs - 6音軌擴充版)"
         ]
-        self.model_menu = ttk.Combobox(format_row, textvariable=self.model_var, values=model_options, state="readonly", width=45)
+        self.model_menu = ctk.CTkComboBox(format_row, variable=self.model_var, values=model_options, state="readonly", width=420, corner_radius=16)
         self.model_menu.pack(side=tk.LEFT, padx=5)
-        self.model_menu.current(0)
+        self.model_menu.set(model_options[0])
         
         tk.Label(format_row, text="輸出格式:").pack(side=tk.LEFT, padx=(10, 0))
         self.output_format_var = tk.StringVar(value="mp3")
@@ -383,7 +753,7 @@ class VocalForgeStudioApp:
             tk.Radiobutton(format_row, text=fmt.upper(), variable=self.output_format_var, value=fmt).pack(side=tk.LEFT, padx=10)
 
         # KTV 影片設定列
-        self.ktv_row = tk.Frame(settings_frame)
+        self.ktv_row = tk.Frame(self.settings_body)
         ktv_row = self.ktv_row
         ktv_row.pack(fill=tk.X, pady=2)
 
@@ -394,7 +764,7 @@ class VocalForgeStudioApp:
                        variable=self.video_format_var, value="mp4").pack(side=tk.LEFT, padx=5)
 
         # 伴唱帶音軌模式列
-        self.track_row = tk.Frame(settings_frame)
+        self.track_row = tk.Frame(self.settings_body)
         track_row = self.track_row
         track_row.pack(fill=tk.X, pady=2)
 
@@ -405,7 +775,7 @@ class VocalForgeStudioApp:
                        variable=self.audio_track_mode_var, value="lr").pack(side=tk.LEFT, padx=5)
 
         # 導唱混合比例列
-        self.mix_row = tk.Frame(settings_frame)
+        self.mix_row = tk.Frame(self.settings_body)
         mix_row = self.mix_row
         mix_row.pack(fill=tk.X, pady=2)
         tk.Label(mix_row, text="導唱混合比例:").pack(side=tk.LEFT)
@@ -424,29 +794,33 @@ class VocalForgeStudioApp:
         self.update_vocal_mix_label()
 
         # 額外影片選項列
-        self.extra_video_row = tk.Frame(settings_frame)
+        self.extra_video_row = tk.Frame(self.settings_body)
         extra_video_row = self.extra_video_row
         extra_video_row.pack(fill=tk.X, pady=2)
 
         self.force_1080p_var = tk.BooleanVar(value=False)
-        self.force_1080p_chk = tk.Checkbutton(
+        self.force_1080p_chk = ctk.CTkCheckBox(
             extra_video_row,
             text="強制等比輸出 1080p（不足自動補黑邊）",
-            variable=self.force_1080p_var
+            variable=self.force_1080p_var,
+            checkbox_width=18,
+            checkbox_height=18,
         )
         self.force_1080p_chk.pack(side=tk.LEFT)
 
         self.yt_cc_var = tk.BooleanVar(value=True)
-        self.yt_cc_chk = tk.Checkbutton(
+        self.yt_cc_chk = ctk.CTkCheckBox(
             extra_video_row,
             text="啟用 YouTube CC 字幕處理",
             variable=self.yt_cc_var,
-            command=self.refresh_yt_subtitle_mode_ui
+            command=self.refresh_yt_subtitle_mode_ui,
+            checkbox_width=18,
+            checkbox_height=18,
         )
         self.yt_cc_chk.pack(side=tk.LEFT, padx=(12, 0))
 
         self.yt_subtitle_mode_var = tk.StringVar(value="mux")
-        self.yt_subtitle_mode_row = tk.Frame(settings_frame)
+        self.yt_subtitle_mode_row = tk.Frame(self.settings_body)
         tk.Label(self.yt_subtitle_mode_row, text="字幕模式:").pack(side=tk.LEFT)
         tk.Radiobutton(
             self.yt_subtitle_mode_row,
@@ -464,35 +838,61 @@ class VocalForgeStudioApp:
         ).pack(side=tk.LEFT, padx=5)
 
         # 按鈕區
-        btn_frame = tk.Frame(self.root)
-        btn_frame.pack(pady=10)
-        self.start_btn = tk.Button(btn_frame, text="開始分離任務", command=self.on_start_click, 
-                                  bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), width=20)
-        self.start_btn.pack(side=tk.LEFT, padx=10)
-        self.cancel_btn = tk.Button(btn_frame, text="取消任務", command=self.cancel_processing,
-                                   bg="#F44336", fg="white", font=("Arial", 10), width=12, state=tk.DISABLED)
-        self.cancel_btn.pack(side=tk.LEFT, padx=5)
-        self.update_btn = tk.Button(btn_frame, text="一鍵修復/初始化環境", command=self.check_components,
-                                   bg="#2196F3", fg="white", font=("Arial", 10), width=18)
-        self.update_btn.pack(side=tk.LEFT, padx=10)
+        self.action_frame = ctk.CTkFrame(
+            self.root,
+            fg_color=self.ui["surface"],
+            corner_radius=20,
+            border_width=1,
+            border_color=self.ui["border"],
+        )
+        self.action_frame.pack(pady=(0, 8), fill=tk.X, padx=24)
+        btn_frame = self.action_frame
+        self.start_btn = ctk.CTkButton(btn_frame, text="開始分離任務", command=self.on_start_click, width=170, height=34, corner_radius=16)
+        self.start_btn.config = self.start_btn.configure
+        self.start_btn.pack(side=tk.LEFT, padx=(16, 10), pady=12)
+        self.cancel_btn = ctk.CTkButton(btn_frame, text="取消任務", command=self.cancel_processing, width=170, height=34, corner_radius=16, state=tk.DISABLED)
+        self.cancel_btn.config = self.cancel_btn.configure
+        self.cancel_btn.pack(side=tk.LEFT, padx=5, pady=12)
+        self.update_btn = ctk.CTkButton(btn_frame, text="一鍵修復/初始化環境", command=self.check_components, width=170, height=34, corner_radius=16)
+        self.update_btn.config = self.update_btn.configure
+        self.update_btn.pack(side=tk.LEFT, padx=10, pady=12)
         
         # 狀態與進度 (移動回 setup_ui 正確位置)
-        status_frame = tk.Frame(self.root)
-        status_frame.pack(fill=tk.X, padx=20)
+        self.status_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.status_frame.pack(fill=tk.X, padx=24)
         self.status_var = tk.StringVar(value="狀態: 初始化中...")
-        self.status_label = tk.Label(status_frame, textvariable=self.status_var, fg="blue")
+        self.status_label = ctk.CTkLabel(self.status_frame, textvariable=self.status_var, text_color=self.ui["primary"], font=self.fonts["body_bold"])
         self.status_label.pack(side=tk.LEFT)
         
-        self.progress_text = tk.Label(status_frame, text="0%", font=("Arial", 8))
+        self.progress_text = ctk.CTkLabel(self.status_frame, text="0%", font=self.fonts["small"], text_color=self.ui["muted"])
         self.progress_text.pack(side=tk.RIGHT)
         
-        self.progress_bar = ttk.Progressbar(self.root, orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.pack(fill=tk.X, padx=20, pady=5)
+        self.progress_bar = ctk.CTkProgressBar(self.root, height=10, corner_radius=8, progress_color=self.ui["primary"])
+        self.progress_bar.set(0)
+        self.progress_bar.pack(fill=tk.X, padx=24, pady=(5, 10))
         
         # 日誌區
-        tk.Label(self.root, text="執行日誌:").pack(anchor=tk.W, padx=20)
-        self.log_area = scrolledtext.ScrolledText(self.root, height=12, font=("Consolas", 9), bg="#F8F9FA")
-        self.log_area.pack(pady=(5, 10), padx=20, fill=tk.BOTH, expand=True)
+        self.log_frame = ctk.CTkFrame(
+            self.root,
+            fg_color=self.ui["surface"],
+            corner_radius=20,
+            border_width=1,
+            border_color=self.ui["border"],
+            height=250,
+        )
+        self.log_frame.pack(pady=(0, 16), padx=24, fill=tk.X)
+        self.log_frame.pack_propagate(False)
+        self.log_label = ctk.CTkLabel(self.log_frame, text="執行日誌", font=self.fonts["section"], text_color=self.ui["text"])
+        self.log_label.pack(anchor=tk.W, padx=14, pady=(12, 8))
+        self.log_area = ctk.CTkTextbox(
+            self.log_frame,
+            font=self.fonts["mono"],
+            fg_color=self.ui["console"],
+            text_color=self.ui["console_text"],
+            corner_radius=16,
+            border_width=0,
+        )
+        self.log_area.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 12))
 
         # 立即刷新視窗並顯示歡迎訊息
         self.refresh_yt_subtitle_mode_ui()
@@ -504,13 +904,13 @@ class VocalForgeStudioApp:
         current_tab = self.notebook.index("current")
         vfmt = self.video_format_var.get().upper() if hasattr(self, 'video_format_var') else "MKV"
         if current_tab == 0:
-            self.start_btn.config(text=f"一鍵製作 {vfmt} 伴唱帶", bg="#E91E63")
+            self._set_action_button(f"一鍵製作 {vfmt} 伴唱帶", self.ui["pink"], self.ui["pink_hover"])
         elif current_tab == 1:
-            self.start_btn.config(text="立即下載 YouTube 檔案", bg="#2196F3")
+            self._set_action_button("立即下載 YouTube 檔案", self.ui["primary"], self.ui["primary_hover"])
         elif current_tab == 2:
-            self.start_btn.config(text=f"製作本地影片 KTV ({vfmt})", bg="#9C27B0")
+            self._set_action_button(f"製作本地影片 KTV ({vfmt})", self.ui["purple"], self.ui["purple_hover"])
         else:
-            self.start_btn.config(text="開始批量分離音檔", bg="#4CAF50")
+            self._set_action_button("開始批量分離音檔", self.ui["success"], self.ui["success_hover"])
 
     def refresh_yt_subtitle_mode_ui(self):
         """依分頁與勾選狀態顯示字幕模式列。"""
@@ -943,9 +1343,13 @@ class VocalForgeStudioApp:
         self.root.after(0, lambda: self._safe_update_progress(percent, text))
 
     def _safe_update_progress(self, percent, text):
-        self.progress_bar['value'] = percent
-        if text: self.status_var.set(f"狀態: {text} ({percent}%)")
-        else: self.progress_text.config(text=f"{percent}%")
+        if isinstance(self.progress_bar, ctk.CTkProgressBar):
+            self.progress_bar.set(max(0, min(100, percent)) / 100)
+        else:
+            self.progress_bar['value'] = percent
+        self.progress_text.configure(text=f"{percent}%")
+        if text:
+            self.status_var.set(f"狀態: {text} ({percent}%)")
 
     def browse_file(self):
         filenames = filedialog.askopenfilenames(filetypes=[("Audio files", "*.mp3 *.wav *.flac *.m4a"), ("All files", "*.*")])
@@ -975,7 +1379,16 @@ class VocalForgeStudioApp:
 
     def _safe_update_status(self, text, color):
         self.status_var.set(f"狀態: {text}")
-        self.status_label.config(fg=color)
+        color_map = {
+            "blue": self.ui["primary"],
+            "green": self.ui["success"],
+            "orange": self.ui["warning"],
+            "red": self.ui["danger"],
+        }
+        if isinstance(self.status_label, ctk.CTkLabel):
+            self.status_label.configure(text_color=color_map.get(color, color))
+        else:
+            self.status_label.config(fg=color_map.get(color, color))
 
     def check_gpu_env(self):
         self.log("\n---[開始 GPU 環境深度檢測] ---")
@@ -1258,9 +1671,20 @@ if not libs_found:
                     if ktv_result.success:
                         self.log(f"✅ 成功生成 {vfmt.upper()} 伴唱帶: {output_file.name}")
                         if self.dl_svc.last_downloaded_subtitle:
-                            self.dl_svc.last_downloaded_subtitle = self.dl_svc.align_subtitle_filename(
-                                self.dl_svc.last_downloaded_subtitle, str(output_file)
-                            )
+                            if subtitle_for_mux and vfmt.upper() == "MKV":
+                                # 字幕已封裝進 MKV，刪除旁掛 SRT 避免播放器重複載入兩條字幕
+                                srt_path = self.dl_svc.last_downloaded_subtitle
+                                try:
+                                    if os.path.exists(srt_path):
+                                        os.remove(srt_path)
+                                        self.log(f"  🗑️ 字幕已封裝於 MKV 內，移除旁掛 SRT：{os.path.basename(srt_path)}")
+                                except Exception:
+                                    pass
+                                self.dl_svc.last_downloaded_subtitle = None
+                            else:
+                                self.dl_svc.last_downloaded_subtitle = self.dl_svc.align_subtitle_filename(
+                                    self.dl_svc.last_downloaded_subtitle, str(output_file)
+                                )
                         self.update_progress(100, "處理完成")
                         self.root.after(0, lambda: messagebox.showinfo("成功", f"YouTube 處理完成！\n檔案已儲存至: {output_dir}"))
                         if os.name == 'nt' and os.path.exists(output_dir):
@@ -1334,6 +1758,6 @@ if not libs_found:
             self.finish_processing()
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ctk.CTk()
     app = VocalForgeStudioApp(root)
     root.mainloop()
