@@ -1,6 +1,5 @@
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -47,17 +46,6 @@ class FfmpegService:
                 self.dlog(f"[{label}-FF ] {line}")
         self.dlog(f"[{label}-RC ] {result.returncode}")
         return result
-
-    def _write_audio_metadata_file(self, titles: list[str]) -> str | None:
-        """Write audio stream titles to a UTF-8 ffmetadata file; returns temp path or None."""
-        try:
-            fd, path = tempfile.mkstemp(suffix=".txt", prefix="ffmeta_")
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(";FFMETADATA1\n")
-            return path
-        except Exception as e:
-            self.dlog(f"[META-FILE] failed to create temp file: {e}")
-            return None
 
     # ------------------------------------------------------------------
     # Public API

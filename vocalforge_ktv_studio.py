@@ -171,32 +171,41 @@ class VocalForgeStudioApp:
             "ink_soft": "#E5F1FF",
             "primary": "#007AFF",
             "primary_hover": "#0066D6",
-            "success": "#007AFF",
-            "success_hover": "#0066D6",
-            "danger": "#007AFF",
-            "danger_hover": "#0066D6",
-            "warning": "#007AFF",
-            "warning_hover": "#0066D6",
-            "purple": "#007AFF",
-            "purple_hover": "#0066D6",
-            "pink": "#007AFF",
-            "pink_hover": "#0066D6",
+            "success": "#34C759",
+            "success_hover": "#28A044",
+            "danger": "#FF3B30",
+            "danger_hover": "#D32F27",
+            "warning": "#FF9500",
+            "warning_hover": "#D67E00",
+            "purple": "#AF52DE",
+            "purple_hover": "#8F44B4",
+            "pink": "#FF2D55",
+            "pink_hover": "#D9163B",
             "console": "#F9F9FB",
             "console_text": "#1C1C1E",
         }
         self.fonts = {
-            "title": ("Segoe UI", 22, "bold"),
-            "section": ("Segoe UI", 11, "bold"),
-            "body": ("Segoe UI", 9),
-            "body_bold": ("Segoe UI", 9, "bold"),
-            "small": ("Segoe UI", 8),
-            "button": ("Segoe UI", 9, "bold"),
-            "primary_button": ("Segoe UI", 9, "bold"),
-            "mono": ("Consolas", 9),
+            # ── 标题层 ─────────────────────────────────────────
+            "title":     ("Segoe UI", 20, "bold"),   # App 主标题
+            # ── 区块层 ─────────────────────────────────────────
+            "section":   ("Segoe UI", 12, "bold"),   # 卡片 / 区块标题
+            # ── 内容层 ─────────────────────────────────────────
+            "body":      ("Segoe UI", 10),            # 表单标签、说明文字
+            "body_bold": ("Segoe UI", 10, "bold"),    # 强调标签、状态文字
+            "button":    ("Segoe UI", 10, "bold"),    # 所有按钮文字
+            # ── 提示层 ─────────────────────────────────────────
+            "small":     ("Segoe UI", 9),             # 辅助提示、进度、Badge
+            # ── 等宽层 ─────────────────────────────────────────
+            "mono":      ("Consolas", 10),            # 日志控制台
         }
         self.root.configure(bg=self.ui["bg"])
-        self.root.geometry("1040x1060")
-        self.root.minsize(960, 1000)
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        win_w = min(1040, screen_w)
+        win_h = min(900, screen_h - 80)   # 留出工作列空间
+        self.root.geometry(f"{win_w}x{win_h}")
+        self.root.minsize(800, 600)
+        self.root.maxsize(screen_w, screen_h - 40)
 
         style = ttk.Style()
         try:
@@ -236,8 +245,8 @@ class VocalForgeStudioApp:
         )
 
     def _style_button(self, button, normal_bg=None, hover_bg=None, fg="white", primary=False):
-        normal_bg = self.ui["primary"]
-        hover_bg = self.ui["primary_hover"]
+        normal_bg = normal_bg or self.ui["primary"]
+        hover_bg = hover_bg or self.ui["primary_hover"]
         font = self.fonts["button"]
         if isinstance(button, ctk.CTkButton):
             button.configure(
@@ -294,13 +303,6 @@ class VocalForgeStudioApp:
         else:
             self.settings_dropdown.pack_forget()
             self.settings_toggle_btn.configure(text="展開")
-
-    def index(self, target):
-        if target == "current":
-            if hasattr(self, "tabview") and hasattr(self, "tab_names"):
-                return self.tab_names.index(self.tabview.get())
-            return getattr(self, "current_tab_index", 0)
-        raise tk.TclError(f"unsupported index target: {target}")
 
     def _handle_ctk_tab_changed(self):
         tab_name = self.tabview.get()
@@ -398,66 +400,69 @@ class VocalForgeStudioApp:
 
     def _polish_ui(self):
         self._polish_widget_tree(self.root)
-        self.header_frame.configure(bg=self.ui["bg"])
-        for child in self.header_frame.winfo_children():
-            child.configure(bg=self.ui["bg"])
-            for grandchild in child.winfo_children():
-                grandchild.configure(bg=self.ui["bg"])
-                for item in grandchild.winfo_children():
-                    item.configure(bg=self.ui["bg"])
-        self.header_title.configure(bg=self.ui["bg"], fg=self.ui["text"], font=self.fonts["title"])
-        self.header_subtitle.configure(bg=self.ui["bg"], fg=self.ui["muted"], font=self.fonts["body"])
-        self.header_badge.configure(bg=self.ui["ink_soft"], fg=self.ui["primary"], font=self.fonts["small"])
-        self.workspace_frame.configure(
-            bg=self.ui["surface"],
-            highlightbackground=self.ui["border"],
-            highlightcolor=self.ui["border"],
-            highlightthickness=1,
-        )
-        self.main_frame.configure(bg=self.ui["bg"])
-        self.settings_frame.configure(
-            bg=self.ui["surface"],
-            highlightbackground=self.ui["border"],
-            highlightcolor=self.ui["border"],
-            highlightthickness=1,
-        )
-        self.settings_dropdown.configure(bg=self.ui["surface"])
-        self.settings_canvas.configure(bg=self.ui["surface"])
-        self.settings_scrollbar.configure(bg=self.ui["surface_soft"], activebackground=self.ui["border"], troughcolor=self.ui["surface"])
-        self.settings_body.configure(bg=self.ui["surface"])
-        self.settings_title.configure(font=self.fonts["section"], fg=self.ui["text"], bg=self.ui["surface"])
-        self.settings_subtitle.configure(font=self.fonts["small"], fg=self.ui["muted"], bg=self.ui["surface"])
-        self.action_frame.configure(
-            bg=self.ui["surface"],
-            highlightbackground=self.ui["border"],
-            highlightcolor=self.ui["border"],
-            highlightthickness=1,
-        )
-        self.status_frame.configure(bg=self.ui["bg"])
-        self.log_frame.configure(
-            bg=self.ui["surface"],
-            highlightbackground=self.ui["border"],
-            highlightcolor=self.ui["border"],
-            highlightthickness=1,
-        )
-        self.log_label.configure(font=self.fonts["section"], fg=self.ui["text"], bg=self.ui["surface"])
+        self.header_title.configure(text_color=self.ui["text"], font=self.fonts["title"])
+        self.header_subtitle.configure(text_color=self.ui["muted"], font=self.fonts["body"])
+        self.header_badge.configure(text_color=self.ui["primary"], fg_color=self.ui["ink_soft"], font=self.fonts["small"])
+        self.workspace_frame.configure(fg_color=self.ui["surface"], border_color=self.ui["border"])
+        self.main_frame.configure(fg_color="transparent")
+        self.settings_frame.configure(fg_color=self.ui["surface"], border_color=self.ui["border"])
+        self.settings_title.configure(font=self.fonts["section"], text_color=self.ui["text"])
+        self.settings_subtitle.configure(font=self.fonts["small"], text_color=self.ui["muted"])
+        self.action_frame.configure(fg_color=self.ui["surface"], border_color=self.ui["border"])
+        self.log_frame.configure(fg_color=self.ui["surface"], border_color=self.ui["border"])
+        self.log_label.configure(font=self.fonts["section"], text_color=self.ui["text"])
         self.log_area.configure(
             font=self.fonts["mono"],
-            bg=self.ui["console"],
-            fg=self.ui["console_text"],
-            insertbackground=self.ui["primary"],
-            relief=tk.FLAT,
-            bd=0,
-            padx=12,
-            pady=10,
+            fg_color=self.ui["console"],
+            text_color=self.ui["console_text"],
         )
-        self.progress_text.configure(font=self.fonts["small"], fg=self.ui["muted"], bg=self.ui["bg"])
-        self.status_label.configure(font=self.fonts["body_bold"], bg=self.ui["bg"])
+        self.progress_text.configure(font=self.fonts["small"], text_color=self.ui["muted"])
+        self.status_label.configure(font=self.fonts["body_bold"])
+        self.progress_bar.configure(progress_color=self.ui["primary"])
         self.refresh_start_button_text()
+
+    def _on_mousewheel(self, event):
+        """将鼠标滚轮事件转发给主滚动画布，但不拦截内部文字区域的滚动。"""
+        try:
+            if event.widget.winfo_class() == "Text":
+                return  # CTkTextbox 内部 Text 自行处理滚动
+        except Exception:
+            pass
+        if hasattr(self, "_scroll_canvas"):
+            self._scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def setup_ui(self):
         self._setup_theme()
-        self.header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+
+        # ── 可滚动主容器 ──────────────────────────────────────────
+        self._scroll_canvas = tk.Canvas(
+            self.root, bg=self.ui["bg"], highlightthickness=0, bd=0
+        )
+        self._main_scrollbar = ttk.Scrollbar(
+            self.root, orient="vertical", command=self._scroll_canvas.yview
+        )
+        self._scroll_canvas.configure(yscrollcommand=self._main_scrollbar.set)
+        self._main_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._scroll_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self._content_frame = tk.Frame(self._scroll_canvas, bg=self.ui["bg"])
+        self._canvas_win = self._scroll_canvas.create_window(
+            (0, 0), window=self._content_frame, anchor="nw"
+        )
+        self._content_frame.bind(
+            "<Configure>",
+            lambda e: self._scroll_canvas.configure(
+                scrollregion=self._scroll_canvas.bbox("all")
+            ),
+        )
+        self._scroll_canvas.bind(
+            "<Configure>",
+            lambda e: self._scroll_canvas.itemconfig(self._canvas_win, width=e.width),
+        )
+        self.root.bind_all("<MouseWheel>", self._on_mousewheel)
+        # ─────────────────────────────────────────────────────────
+
+        self.header_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         self.header_frame.pack(fill=tk.X)
         header_inner = ctk.CTkFrame(self.header_frame, fg_color="transparent")
         header_inner.pack(fill=tk.X, padx=28, pady=(22, 14))
@@ -489,7 +494,7 @@ class VocalForgeStudioApp:
         )
         self.header_badge.pack(side=tk.RIGHT)
 
-        self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.main_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         self.main_frame.pack(fill=tk.X, padx=24, pady=(6, 10), expand=False)
         
         # 使用 Notebook 分組功能
@@ -503,7 +508,6 @@ class VocalForgeStudioApp:
         self.workspace_frame.pack(fill=tk.X)
         self.current_tab_index = 0
         self.tab_names = ["YouTube 一鍵轉 KTV", "YouTube 下載", "本地影片轉 KTV", "本地音檔分離"]
-        self.notebook = self
         self.tabview = ctk.CTkTabview(
             self.workspace_frame,
             fg_color=self.ui["surface"],
@@ -521,13 +525,13 @@ class VocalForgeStudioApp:
         # --- Tab 1: YouTube 轉 MKV ---
         yt_tab = self.tabview.add(self.tab_names[0])
         
-        tk.Label(yt_tab, text="YouTube 網址:").pack(side=tk.LEFT)
+        tk.Label(yt_tab, text="YouTube 網址:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.yt_entry = ctk.CTkEntry(yt_tab, textvariable=self.yt_url_var, height=34, corner_radius=16)
         self.yt_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         self.yt_entry.bind("<Button-1>", self.quick_paste_url)
         
         # 提示標籤
-        tk.Label(yt_tab, text="(點擊輸入框自動貼上剪貼簿網址)", fg="gray", font=("Arial", 8)).pack(side=tk.BOTTOM, anchor=tk.W, padx=(85, 0))
+        tk.Label(yt_tab, text="點擊輸入框自動貼上剪貼簿網址", fg=self.ui["hint"], font=self.fonts["small"]).pack(side=tk.BOTTOM, anchor=tk.W, padx=(85, 0))
 
         # --- Tab 2: YouTube 純下載 ---
         yt_dl_tab = self.tabview.add(self.tab_names[1])
@@ -535,29 +539,29 @@ class VocalForgeStudioApp:
         # 第一列：網址輸入（Tab 2 獨立變數，不影響 Tab 1）
         dl_url_row = tk.Frame(yt_dl_tab)
         dl_url_row.pack(fill=tk.X, pady=2)
-        tk.Label(dl_url_row, text="YouTube 網址:").pack(side=tk.LEFT)
+        tk.Label(dl_url_row, text="YouTube 網址:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.yt_dl_url_var = tk.StringVar()
         self.yt_dl_entry = ctk.CTkEntry(dl_url_row, textvariable=self.yt_dl_url_var, height=34, corner_radius=16)
         self.yt_dl_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         self.yt_dl_entry.bind("<Button-1>", self.quick_paste_dl_url)
-        tk.Label(dl_url_row, text="(點擊自動貼上)", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT)
+        tk.Label(dl_url_row, text="點擊自動貼上", fg=self.ui["hint"], font=self.fonts["small"]).pack(side=tk.LEFT)
 
         # 第二列：下載格式 + 畫質選擇
         dl_opt_row = tk.Frame(yt_dl_tab)
         dl_opt_row.pack(fill=tk.X, pady=2)
 
-        tk.Label(dl_opt_row, text="下載格式:").pack(side=tk.LEFT)
+        tk.Label(dl_opt_row, text="下載格式:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.dl_type_var = tk.StringVar(value="both")
-        tk.Radiobutton(dl_opt_row, text="MP3 + MP4", variable=self.dl_type_var, value="both").pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(dl_opt_row, text="僅 MP3",    variable=self.dl_type_var, value="mp3" ).pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(dl_opt_row, text="僅 MP4",    variable=self.dl_type_var, value="mp4" ).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="MP3 + MP4", variable=self.dl_type_var, value="both", font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="僅 MP3",    variable=self.dl_type_var, value="mp3",  font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="僅 MP4",    variable=self.dl_type_var, value="mp4",  font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
 
-        tk.Label(dl_opt_row, text="  |  MP4 畫質:").pack(side=tk.LEFT, padx=(10, 0))
+        tk.Label(dl_opt_row, text="  |  MP4 畫質:", font=self.fonts["body"]).pack(side=tk.LEFT, padx=(10, 0))
         self.dl_quality_var = tk.StringVar(value="1080")
-        tk.Radiobutton(dl_opt_row, text="最佳",  variable=self.dl_quality_var, value="best" ).pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(dl_opt_row, text="1080p", variable=self.dl_quality_var, value="1080" ).pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(dl_opt_row, text="720p",  variable=self.dl_quality_var, value="720"  ).pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(dl_opt_row, text="480p",  variable=self.dl_quality_var, value="480"  ).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="最佳",  variable=self.dl_quality_var, value="best",  font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="1080p", variable=self.dl_quality_var, value="1080",  font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="720p",  variable=self.dl_quality_var, value="720",   font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(dl_opt_row, text="480p",  variable=self.dl_quality_var, value="480",   font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
 
         # 第三列：是否進行音訊分離（Checkbox）
         dl_sep_toggle_row = tk.Frame(yt_dl_tab)
@@ -580,16 +584,17 @@ class VocalForgeStudioApp:
         # 分離選項第一列：輸出格式
         sep_fmt_row = tk.Frame(self.dl_sep_options_frame)
         sep_fmt_row.pack(fill=tk.X, pady=2)
-        tk.Label(sep_fmt_row, text="分離輸出格式:").pack(side=tk.LEFT)
+        tk.Label(sep_fmt_row, text="分離輸出格式:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.dl_sep_format_var = tk.StringVar(value="mp3")
         for fmt_val in ["mp3", "wav", "flac"]:
             tk.Radiobutton(sep_fmt_row, text=fmt_val.upper(),
-                           variable=self.dl_sep_format_var, value=fmt_val).pack(side=tk.LEFT, padx=8)
+                           variable=self.dl_sep_format_var, value=fmt_val,
+                           font=self.fonts["body"]).pack(side=tk.LEFT, padx=8)
 
         # 分離選項第二列：分離模型
         sep_model_row = tk.Frame(self.dl_sep_options_frame)
         sep_model_row.pack(fill=tk.X, pady=2)
-        tk.Label(sep_model_row, text="分離模型:").pack(side=tk.LEFT)
+        tk.Label(sep_model_row, text="分離模型:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.dl_sep_model_var = tk.StringVar(value="UVR-MDX-NET-Inst_HQ_3.onnx")
         dl_model_options = [
             "UVR-MDX-NET-Inst_HQ_3.onnx (MDX - 伴奏優化)",
@@ -599,7 +604,8 @@ class VocalForgeStudioApp:
             "htdemucs_ft.yaml (Demucs - 流行樂優化)",
         ]
         ctk.CTkComboBox(sep_model_row, variable=self.dl_sep_model_var,
-                        values=dl_model_options, state="readonly", width=420, corner_radius=16).pack(side=tk.LEFT, padx=5)
+                        values=dl_model_options, state="readonly", width=420, corner_radius=16,
+                        font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
 
         # --- Tab 3: 本地影片轉 MKV ---
         local_v_tab = self.tabview.add(self.tab_names[2])
@@ -625,18 +631,18 @@ class VocalForgeStudioApp:
         v_btn_frame = tk.Frame(v_top_frame)
         v_btn_frame.pack(side=tk.RIGHT, padx=5, fill=tk.Y)
         self.v_list = []
-        ctk.CTkButton(v_btn_frame, text="加入影片", command=self.browse_local_video, width=96, height=30, corner_radius=14).pack(pady=2)
-        ctk.CTkButton(v_btn_frame, text="加入資料夾", command=self.browse_local_v_folder, width=96, height=30, corner_radius=14).pack(pady=2)
-        ctk.CTkButton(v_btn_frame, text="移除選取", command=self.remove_selected_v, width=96, height=30, corner_radius=14).pack(pady=2)
-        ctk.CTkButton(v_btn_frame, text="清除清單", command=self.clear_v_list, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="加入影片",   command=self.browse_local_video,     width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="加入資料夾", command=self.browse_local_v_folder,   width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="移除選取",   command=self.remove_selected_v,       width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
+        ctk.CTkButton(v_btn_frame, text="清除清單",   command=self.clear_v_list,            width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
 
         # 字幕導入列
-        tk.Label(v_sub_row, text="字幕檔:").pack(side=tk.LEFT)
+        tk.Label(v_sub_row, text="字幕檔:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.local_subtitle_var = tk.StringVar()
         ctk.CTkEntry(v_sub_row, textvariable=self.local_subtitle_var, height=32, corner_radius=16).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        ctk.CTkButton(v_sub_row, text="選擇 SRT", command=self.browse_local_subtitle, width=86, height=30, corner_radius=14).pack(side=tk.LEFT)
-        ctk.CTkButton(v_sub_row, text="清除", command=lambda: self.local_subtitle_var.set(""), width=58, height=30, corner_radius=14).pack(side=tk.LEFT, padx=3)
-        tk.Label(v_sub_row, text="（空白則自動比對影片同名 .srt）", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=4)
+        ctk.CTkButton(v_sub_row, text="選擇 SRT", command=self.browse_local_subtitle, width=86, height=30, corner_radius=14, font=self.fonts["button"]).pack(side=tk.LEFT)
+        ctk.CTkButton(v_sub_row, text="清除", command=lambda: self.local_subtitle_var.set(""), width=58, height=30, corner_radius=14, font=self.fonts["button"]).pack(side=tk.LEFT, padx=3)
+        tk.Label(v_sub_row, text="空白則自動比對影片同名 .srt", fg=self.ui["hint"], font=self.fonts["small"]).pack(side=tk.LEFT, padx=4)
 
         # --- Tab 4: 本地檔案分離 ---
         file_tab = self.tabview.add(self.tab_names[3])
@@ -654,9 +660,9 @@ class VocalForgeStudioApp:
         
         file_btn_frame = tk.Frame(file_tab)
         file_btn_frame.pack(side=tk.RIGHT, padx=5, fill=tk.Y)
-        ctk.CTkButton(file_btn_frame, text="加入檔案", command=self.browse_file, width=96, height=30, corner_radius=14).pack(pady=2)
-        ctk.CTkButton(file_btn_frame, text="移除選取", command=self.remove_selected_file, width=96, height=30, corner_radius=14).pack(pady=2)
-        ctk.CTkButton(file_btn_frame, text="清除清單", command=self.clear_files, width=96, height=30, corner_radius=14).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="加入檔案", command=self.browse_file,            width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="移除選取", command=self.remove_selected_file,  width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
+        ctk.CTkButton(file_btn_frame, text="清除清單", command=self.clear_files,           width=96, height=30, corner_radius=14, font=self.fonts["button"]).pack(pady=2)
         
         # --- 設定區 ---
         self.settings_expanded = tk.BooleanVar(value=False)
@@ -675,7 +681,7 @@ class VocalForgeStudioApp:
         self.settings_title.pack(side=tk.LEFT)
         self.settings_subtitle = ctk.CTkLabel(settings_header, text="模型、輸出、字幕與運算環境", text_color=self.ui["muted"], font=self.fonts["small"])
         self.settings_subtitle.pack(side=tk.LEFT, padx=(10, 0))
-        self.settings_toggle_btn = ctk.CTkButton(settings_header, text="展開", command=self._toggle_settings_panel, width=72, height=30, corner_radius=14)
+        self.settings_toggle_btn = ctk.CTkButton(settings_header, text="展開", command=self._toggle_settings_panel, width=72, height=30, corner_radius=14, font=self.fonts["button"])
         self.settings_toggle_btn.pack(side=tk.RIGHT)
         self.settings_dropdown = ctk.CTkScrollableFrame(settings_frame, fg_color=self.ui["surface"], height=118, corner_radius=0)
         self.settings_body = self.settings_dropdown
@@ -684,36 +690,36 @@ class VocalForgeStudioApp:
         out_row = tk.Frame(self.settings_body)
         out_row.pack(fill=tk.X, pady=2)
         self.output_dir_var = tk.StringVar(value=str(self.app_dir / "output"))
-        tk.Label(out_row, text="輸出目錄:").pack(side=tk.LEFT)
+        tk.Label(out_row, text="輸出目錄:", font=self.fonts["body"]).pack(side=tk.LEFT)
         ctk.CTkEntry(out_row, textvariable=self.output_dir_var, height=32, corner_radius=16).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        ctk.CTkButton(out_row, text="瀏覽", command=self.browse_output_dir, width=72, height=30, corner_radius=14).pack(side=tk.RIGHT)
+        ctk.CTkButton(out_row, text="瀏覽", command=self.browse_output_dir, width=72, height=30, corner_radius=14, font=self.fonts["button"]).pack(side=tk.RIGHT)
         
         # Cookie 設定列（防止 YouTube 429 封鎖）
         cookie_row = tk.Frame(self.settings_body)
         cookie_row.pack(fill=tk.X, pady=2)
-        tk.Label(cookie_row, text="YouTube Cookie:").pack(side=tk.LEFT)
+        tk.Label(cookie_row, text="YouTube Cookie:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.cookie_browser_var = tk.StringVar(value="none")
-        tk.Radiobutton(cookie_row, text="不使用", variable=self.cookie_browser_var, value="none").pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(cookie_row, text="Chrome", variable=self.cookie_browser_var, value="chrome").pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(cookie_row, text="Firefox", variable=self.cookie_browser_var, value="firefox").pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(cookie_row, text="Edge", variable=self.cookie_browser_var, value="edge").pack(side=tk.LEFT, padx=4)
-        tk.Radiobutton(cookie_row, text="Brave", variable=self.cookie_browser_var, value="brave").pack(side=tk.LEFT, padx=4)
-        tk.Label(cookie_row, text="← 遇到 429 封鎖時，選擇你目前登入 YouTube 的瀏覽器", fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=6)
+        tk.Radiobutton(cookie_row, text="不使用", variable=self.cookie_browser_var, value="none",    font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(cookie_row, text="Chrome",  variable=self.cookie_browser_var, value="chrome", font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(cookie_row, text="Firefox", variable=self.cookie_browser_var, value="firefox",font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(cookie_row, text="Edge",    variable=self.cookie_browser_var, value="edge",   font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Radiobutton(cookie_row, text="Brave",   variable=self.cookie_browser_var, value="brave",  font=self.fonts["body"]).pack(side=tk.LEFT, padx=4)
+        tk.Label(cookie_row, text="遇到 429 封鎖時，選擇你目前登入 YouTube 的瀏覽器", fg=self.ui["hint"], font=self.fonts["small"]).pack(side=tk.LEFT, padx=6)
 
         # 運算裝置與去噪
         self.opt_row = tk.Frame(self.settings_body)
         opt_row = self.opt_row
         opt_row.pack(fill=tk.X, pady=5)
         
-        tk.Label(opt_row, text="運算裝置:").pack(side=tk.LEFT)
+        tk.Label(opt_row, text="運算裝置:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.device_var = tk.StringVar(value="cpu")
-        tk.Radiobutton(opt_row, text="CPU", variable=self.device_var, value="cpu").pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(opt_row, text="GPU (NVIDIA)", variable=self.device_var, value="gpu").pack(side=tk.LEFT, padx=5)
-        
-        ctk.CTkButton(opt_row, text="檢測 GPU 環境", command=self.check_gpu_env, width=116, height=30, corner_radius=14).pack(side=tk.LEFT, padx=10)
-        
+        tk.Radiobutton(opt_row, text="CPU",          variable=self.device_var, value="cpu", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(opt_row, text="GPU (NVIDIA)", variable=self.device_var, value="gpu", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
+
+        ctk.CTkButton(opt_row, text="檢測 GPU 環境", command=self.check_gpu_env, width=116, height=30, corner_radius=14, font=self.fonts["button"]).pack(side=tk.LEFT, padx=10)
+
         self.denoise_var = tk.BooleanVar(value=True)
-        ctk.CTkCheckBox(opt_row, text="啟用 AI 去噪", variable=self.denoise_var, checkbox_width=18, checkbox_height=18).pack(side=tk.RIGHT, padx=10)
+        ctk.CTkCheckBox(opt_row, text="啟用 AI 去噪", variable=self.denoise_var, checkbox_width=18, checkbox_height=18, font=self.fonts["body"]).pack(side=tk.RIGHT, padx=10)
 
         # 隱藏但保留變數以維持邏輯相容
         self.overlap_var = tk.DoubleVar(value=0.5)
@@ -733,52 +739,52 @@ class VocalForgeStudioApp:
         format_row = self.format_row
         format_row.pack(fill=tk.X, pady=2)
         
-        tk.Label(format_row, text="AI 模型:").pack(side=tk.LEFT)
+        tk.Label(format_row, text="AI 模型:", font=self.fonts["body"]).pack(side=tk.LEFT)
         self.model_var = tk.StringVar(value="UVR-MDX-NET-Inst_HQ_3.onnx")
-        model_options =[
+        model_options = [
             "UVR-MDX-NET-Inst_HQ_3.onnx (MDX - 伴奏優化)",
             "UVR-MDX-NET-Inst_HQ_4.onnx (MDX - 高品質綜合)",
             "Kim_Vocal_2.onnx (MDX - 極致人聲提取)",
             "htdemucs.yaml (Demucs - 4音軌高品質分離)",
             "htdemucs_ft.yaml (Demucs - 流行樂優化)",
-            "htdemucs_6s.yaml (Demucs - 6音軌擴充版)"
+            "htdemucs_6s.yaml (Demucs - 6音軌擴充版)",
         ]
-        self.model_menu = ctk.CTkComboBox(format_row, variable=self.model_var, values=model_options, state="readonly", width=420, corner_radius=16)
+        self.model_menu = ctk.CTkComboBox(format_row, variable=self.model_var, values=model_options, state="readonly", width=420, corner_radius=16, font=self.fonts["body"])
         self.model_menu.pack(side=tk.LEFT, padx=5)
         self.model_menu.set(model_options[0])
-        
-        tk.Label(format_row, text="輸出格式:").pack(side=tk.LEFT, padx=(10, 0))
+
+        tk.Label(format_row, text="輸出格式:", font=self.fonts["body"]).pack(side=tk.LEFT, padx=(10, 0))
         self.output_format_var = tk.StringVar(value="mp3")
         for fmt in ["mp3", "wav", "flac"]:
-            tk.Radiobutton(format_row, text=fmt.upper(), variable=self.output_format_var, value=fmt).pack(side=tk.LEFT, padx=10)
+            tk.Radiobutton(format_row, text=fmt.upper(), variable=self.output_format_var, value=fmt, font=self.fonts["body"]).pack(side=tk.LEFT, padx=10)
 
         # KTV 影片設定列
         self.ktv_row = tk.Frame(self.settings_body)
         ktv_row = self.ktv_row
         ktv_row.pack(fill=tk.X, pady=2)
 
-        tk.Label(ktv_row, text="KTV 影片格式:").pack(side=tk.LEFT)
+        tk.Label(ktv_row, text="KTV 影片格式:", font=self.fonts["body"]).pack(side=tk.LEFT)
         tk.Radiobutton(ktv_row, text="MKV（預設，相容性最佳）",
-                       variable=self.video_format_var, value="mkv").pack(side=tk.LEFT, padx=5)
+                       variable=self.video_format_var, value="mkv", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(ktv_row, text="MP4",
-                       variable=self.video_format_var, value="mp4").pack(side=tk.LEFT, padx=5)
+                       variable=self.video_format_var, value="mp4", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
 
         # 伴唱帶音軌模式列
         self.track_row = tk.Frame(self.settings_body)
         track_row = self.track_row
         track_row.pack(fill=tk.X, pady=2)
 
-        tk.Label(track_row, text="伴唱帶音軌:").pack(side=tk.LEFT)
+        tk.Label(track_row, text="伴唱帶音軌:", font=self.fonts["body"]).pack(side=tk.LEFT)
         tk.Radiobutton(track_row, text="雙音軌（伴唱＋人聲，預設）",
-                       variable=self.audio_track_mode_var, value="dual").pack(side=tk.LEFT, padx=5)
+                       variable=self.audio_track_mode_var, value="dual", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(track_row, text="左伴唱／右人聲（單音軌立體聲）",
-                       variable=self.audio_track_mode_var, value="lr").pack(side=tk.LEFT, padx=5)
+                       variable=self.audio_track_mode_var, value="lr",   font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
 
         # 導唱混合比例列
         self.mix_row = tk.Frame(self.settings_body)
         mix_row = self.mix_row
         mix_row.pack(fill=tk.X, pady=2)
-        tk.Label(mix_row, text="導唱混合比例:").pack(side=tk.LEFT)
+        tk.Label(mix_row, text="導唱混合比例:", font=self.fonts["body"]).pack(side=tk.LEFT)
         tk.Scale(
             mix_row,
             from_=0, to=100,
@@ -787,10 +793,11 @@ class VocalForgeStudioApp:
             resolution=5,
             length=180,
             variable=self.vocal_mix_var,
-            command=lambda _value: self.update_vocal_mix_label()
+            command=lambda _value: self.update_vocal_mix_label(),
+            font=self.fonts["small"],
         ).pack(side=tk.LEFT, padx=5)
-        tk.Label(mix_row, textvariable=self.vocal_mix_label_var, width=28, anchor="w").pack(side=tk.LEFT, padx=5)
-        tk.Label(mix_row, text="人聲越高，越適合跟唱練習", fg="#666").pack(side=tk.LEFT, padx=5)
+        tk.Label(mix_row, textvariable=self.vocal_mix_label_var, width=28, anchor="w", font=self.fonts["body"]).pack(side=tk.LEFT, padx=5)
+        tk.Label(mix_row, text="人聲越高，越適合跟唱練習", fg=self.ui["hint"], font=self.fonts["small"]).pack(side=tk.LEFT, padx=5)
         self.update_vocal_mix_label()
 
         # 額外影片選項列
@@ -805,6 +812,7 @@ class VocalForgeStudioApp:
             variable=self.force_1080p_var,
             checkbox_width=18,
             checkbox_height=18,
+            font=self.fonts["body"],
         )
         self.force_1080p_chk.pack(side=tk.LEFT)
 
@@ -816,30 +824,33 @@ class VocalForgeStudioApp:
             command=self.refresh_yt_subtitle_mode_ui,
             checkbox_width=18,
             checkbox_height=18,
+            font=self.fonts["body"],
         )
         self.yt_cc_chk.pack(side=tk.LEFT, padx=(12, 0))
 
         self.yt_subtitle_mode_var = tk.StringVar(value="mux")
         self.yt_subtitle_mode_row = tk.Frame(self.settings_body)
-        tk.Label(self.yt_subtitle_mode_row, text="字幕模式:").pack(side=tk.LEFT)
+        tk.Label(self.yt_subtitle_mode_row, text="字幕模式:", font=self.fonts["body"]).pack(side=tk.LEFT)
         tk.Radiobutton(
             self.yt_subtitle_mode_row,
-            text="下載SRT字幕",
+            text="下載 SRT 字幕",
             variable=self.yt_subtitle_mode_var,
             value="srt_only",
-            command=self.refresh_yt_subtitle_mode_ui
+            command=self.refresh_yt_subtitle_mode_ui,
+            font=self.fonts["body"],
         ).pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(
             self.yt_subtitle_mode_row,
-            text="下載srt字幕並合成",
+            text="下載 SRT 並封裝入影片",
             variable=self.yt_subtitle_mode_var,
             value="mux",
-            command=self.refresh_yt_subtitle_mode_ui
+            command=self.refresh_yt_subtitle_mode_ui,
+            font=self.fonts["body"],
         ).pack(side=tk.LEFT, padx=5)
 
         # 按鈕區
         self.action_frame = ctk.CTkFrame(
-            self.root,
+            self._content_frame,
             fg_color=self.ui["surface"],
             corner_radius=20,
             border_width=1,
@@ -847,18 +858,18 @@ class VocalForgeStudioApp:
         )
         self.action_frame.pack(pady=(0, 8), fill=tk.X, padx=24)
         btn_frame = self.action_frame
-        self.start_btn = ctk.CTkButton(btn_frame, text="開始分離任務", command=self.on_start_click, width=170, height=34, corner_radius=16)
+        self.start_btn = ctk.CTkButton(btn_frame, text="開始分離任務",       command=self.on_start_click,     width=180, height=36, corner_radius=16, font=self.fonts["button"])
         self.start_btn.config = self.start_btn.configure
         self.start_btn.pack(side=tk.LEFT, padx=(16, 10), pady=12)
-        self.cancel_btn = ctk.CTkButton(btn_frame, text="取消任務", command=self.cancel_processing, width=170, height=34, corner_radius=16, state=tk.DISABLED)
+        self.cancel_btn = ctk.CTkButton(btn_frame, text="取消任務",           command=self.cancel_processing,  width=140, height=36, corner_radius=16, font=self.fonts["button"], state=tk.DISABLED)
         self.cancel_btn.config = self.cancel_btn.configure
         self.cancel_btn.pack(side=tk.LEFT, padx=5, pady=12)
-        self.update_btn = ctk.CTkButton(btn_frame, text="一鍵修復/初始化環境", command=self.check_components, width=170, height=34, corner_radius=16)
+        self.update_btn = ctk.CTkButton(btn_frame, text="一鍵修復/初始化環境", command=self.check_components,   width=180, height=36, corner_radius=16, font=self.fonts["button"])
         self.update_btn.config = self.update_btn.configure
         self.update_btn.pack(side=tk.LEFT, padx=10, pady=12)
         
-        # 狀態與進度 (移動回 setup_ui 正確位置)
-        self.status_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        # 狀態與進度
+        self.status_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         self.status_frame.pack(fill=tk.X, padx=24)
         self.status_var = tk.StringVar(value="狀態: 初始化中...")
         self.status_label = ctk.CTkLabel(self.status_frame, textvariable=self.status_var, text_color=self.ui["primary"], font=self.fonts["body_bold"])
@@ -867,32 +878,31 @@ class VocalForgeStudioApp:
         self.progress_text = ctk.CTkLabel(self.status_frame, text="0%", font=self.fonts["small"], text_color=self.ui["muted"])
         self.progress_text.pack(side=tk.RIGHT)
         
-        self.progress_bar = ctk.CTkProgressBar(self.root, height=10, corner_radius=8, progress_color=self.ui["primary"])
+        self.progress_bar = ctk.CTkProgressBar(self._content_frame, height=10, corner_radius=8, progress_color=self.ui["primary"])
         self.progress_bar.set(0)
         self.progress_bar.pack(fill=tk.X, padx=24, pady=(5, 10))
         
         # 日誌區
         self.log_frame = ctk.CTkFrame(
-            self.root,
+            self._content_frame,
             fg_color=self.ui["surface"],
             corner_radius=20,
             border_width=1,
             border_color=self.ui["border"],
-            height=250,
         )
         self.log_frame.pack(pady=(0, 16), padx=24, fill=tk.X)
-        self.log_frame.pack_propagate(False)
         self.log_label = ctk.CTkLabel(self.log_frame, text="執行日誌", font=self.fonts["section"], text_color=self.ui["text"])
-        self.log_label.pack(anchor=tk.W, padx=14, pady=(12, 8))
+        self.log_label.pack(anchor=tk.W, padx=14, pady=(12, 6))
         self.log_area = ctk.CTkTextbox(
             self.log_frame,
+            height=220,
             font=self.fonts["mono"],
             fg_color=self.ui["console"],
             text_color=self.ui["console_text"],
             corner_radius=16,
             border_width=0,
         )
-        self.log_area.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 12))
+        self.log_area.pack(fill=tk.X, padx=14, pady=(0, 12))
 
         # 立即刷新視窗並顯示歡迎訊息
         self.refresh_yt_subtitle_mode_ui()
@@ -901,7 +911,7 @@ class VocalForgeStudioApp:
 
     def refresh_start_button_text(self):
         """依當前分頁與字幕模式更新主按鈕文字。"""
-        current_tab = self.notebook.index("current")
+        current_tab = self.current_tab_index
         vfmt = self.video_format_var.get().upper() if hasattr(self, 'video_format_var') else "MKV"
         if current_tab == 0:
             self._set_action_button(f"一鍵製作 {vfmt} 伴唱帶", self.ui["pink"], self.ui["pink_hover"])
@@ -914,7 +924,7 @@ class VocalForgeStudioApp:
 
     def refresh_yt_subtitle_mode_ui(self):
         """依分頁與勾選狀態顯示字幕模式列。"""
-        current_tab = self.notebook.index("current") if hasattr(self, "notebook") else 0
+        current_tab = self.current_tab_index
         if current_tab == 0 and self.yt_cc_var.get():
             self.yt_subtitle_mode_row.pack(fill=tk.X, pady=2)
         else:
@@ -931,7 +941,7 @@ class VocalForgeStudioApp:
 
     def on_tab_changed(self, event):
         """當分頁切換時，自動更新啟動按鈕文字，並顯示/隱藏對應的核心設定列"""
-        current_tab = self.notebook.index("current")
+        current_tab = self.current_tab_index
 
         # Tab 1=YouTube KTV, Tab 2=純下載, Tab 3=本地KTV, Tab 4=批量分離
         is_download_only = (current_tab == 1)
@@ -966,7 +976,7 @@ class VocalForgeStudioApp:
 
     def on_start_click(self):
         """智能啟動按鈕：根據當前分頁決定執行對應功能"""
-        current_tab = self.notebook.index("current")
+        current_tab = self.current_tab_index
         if current_tab == 0:
             self.start_yt_process()
         elif current_tab == 1:
