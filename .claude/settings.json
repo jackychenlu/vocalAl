@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "language": "zh-TW",
+  "claudeMdExcludes": [
+    "**/runtime_python/**",
+    "**/ai_libraries/**",
+    "**/ai_libraries_gpu/**",
+    "**/ai_models/**",
+    "**/engine_ffmpeg/**",
+    "**/dist/**",
+    "**/build/**"
+  ],
+  "permissions": {
+    "allow": [
+      "PowerShell(py *)",
+      "PowerShell(py -m *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "Bash(py *)",
+      "Bash(py -m *)"
+    ]
+  }
+}

@@ -22,3 +22,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.swp
+
+# Claude Code personal overrides (do not commit)
+.claude/settings.local.json
+CLAUDE.local.md

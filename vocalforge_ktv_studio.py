@@ -185,18 +185,18 @@ class VocalForgeStudioApp:
             "console_text": "#1C1C1E",
         }
         self.fonts = {
-            # ── 标题层 ─────────────────────────────────────────
-            "title":     ("Segoe UI", 20, "bold"),   # App 主标题
-            # ── 区块层 ─────────────────────────────────────────
-            "section":   ("Segoe UI", 12, "bold"),   # 卡片 / 区块标题
-            # ── 内容层 ─────────────────────────────────────────
-            "body":      ("Segoe UI", 10),            # 表单标签、说明文字
-            "body_bold": ("Segoe UI", 10, "bold"),    # 强调标签、状态文字
-            "button":    ("Segoe UI", 10, "bold"),    # 所有按钮文字
-            # ── 提示层 ─────────────────────────────────────────
-            "small":     ("Segoe UI", 9),             # 辅助提示、进度、Badge
-            # ── 等宽层 ─────────────────────────────────────────
-            "mono":      ("Consolas", 10),            # 日志控制台
+            # ── 標題層 ─────────────────────────────────────────
+            "title":     ("Segoe UI", 20, "bold"),   # 應用程式主標題
+            # ── 區塊層 ─────────────────────────────────────────
+            "section":   ("Segoe UI", 12, "bold"),   # 卡片／區塊標題
+            # ── 內容層 ─────────────────────────────────────────
+            "body":      ("Segoe UI", 10),            # 表單標籤、說明文字
+            "body_bold": ("Segoe UI", 10, "bold"),    # 強調標籤、狀態文字
+            "button":    ("Segoe UI", 10, "bold"),    # 所有按鈕文字
+            # ── 提示層 ─────────────────────────────────────────
+            "small":     ("Segoe UI", 9),             # 輔助提示、進度、Badge
+            # ── 等寬層 ─────────────────────────────────────────
+            "mono":      ("Consolas", 10),            # 日誌輸出
         }
         self.root.configure(bg=self.ui["bg"])
         screen_w = self.root.winfo_screenwidth()
@@ -422,12 +422,11 @@ class VocalForgeStudioApp:
         self.refresh_start_button_text()
 
     def _on_mousewheel(self, event):
-        """将鼠标滚轮事件转发给主滚动画布，但不拦截内部文字区域的滚动。"""
         try:
             if event.widget.winfo_class() == "Text":
-                return  # CTkTextbox 内部 Text 自行处理滚动
-        except Exception:
-            pass
+                return
+        except Exception as e:
+            self.dlog(f"[SCROLL] winfo_class 失敗: {e}")
         if hasattr(self, "_scroll_canvas"):
             self._scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 

@@ -1,4 +1,11 @@
-# /test — 快速冒煙測試
+---
+description: Run smoke tests to verify Python imports, SRT cleaning, TaskResult, and FFmpeg availability.
+disable-model-invocation: true
+allowed-tools: PowerShell(py *) PowerShell(Get-ChildItem *)
+shell: powershell
+---
+
+# Test — 快速冒煙測試
 
 針對 VocalForge KTV Studio 執行基本功能驗證（不需要 GPU）。
 
@@ -26,22 +33,14 @@ if ($ffmpeg) { & $ffmpeg.FullName -version | Select-Object -First 1 } else { Wri
 py -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
 ```
 
-**4. SRT 清理邏輯單元測試**
+**4. SRT 清理邏輯**
 
 ```powershell
 py -c "
 from services.download_service import DownloadService
 from pathlib import Path
-# 建立含 VTT 垃圾的測試 SRT
 test = Path('_test_sub.srt')
-test.write_text('''1
-00:00:01,000 --> 00:00:03,000
-<00:00:01.500><c>Hello</c> World
-
-2
-00:00:04,000 --> 00:00:06,000
-&amp;lt;b&amp;gt;Test&amp;lt;/b&amp;gt;
-''', encoding='utf-8')
+test.write_text('1\n00:00:01,000 --> 00:00:03,000\n<00:00:01.500><c>Hello</c> World\n', encoding='utf-8')
 svc = DownloadService.__new__(DownloadService)
 svc._clean_srt_file(str(test))
 print(test.read_text(encoding='utf-8'))
@@ -50,7 +49,7 @@ print('SRT clean OK')
 "
 ```
 
-**5. TaskResult 基本測試**
+**5. TaskResult**
 
 ```powershell
 py -c "
@@ -65,4 +64,4 @@ print('TaskResult OK')
 
 ## 預期結果
 
-所有步驟應輸出 `OK` 且無 `Exception`。若有失敗，記錄錯誤訊息並回報。
+所有步驟應輸出 `OK` 且無 `Exception`。

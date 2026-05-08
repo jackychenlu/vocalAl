@@ -17,7 +17,8 @@ py -m ruff format . --check --exclude runtime_python,ai_libraries,ai_libraries_g
 py -m pyright vocalforge_ktv_studio.py services/
 ```
 
-自訂 slash commands：`/lint`、`/build`、`/test`、`/deps`、`/debug`、`/smart-debug`、`/security-scan`
+自訂 skills（輸入 `/` 觸發）：`/lint`、`/build`、`/test`、`/deps`、`/debug`、`/smart-debug`、`/security-scan`、`/tech-debt`、`/refactor-clean`
+定義於 `.claude/skills/`（新格式，取代舊 `commands/`）
 
 ## 專案架構
 

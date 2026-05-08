@@ -1,4 +1,11 @@
-# /deps — 檢查與更新依賴套件
+---
+description: Check and update Python dependencies for VocalForge KTV Studio. Use when packages may be outdated, after install errors, or before release.
+disable-model-invocation: true
+allowed-tools: PowerShell(py *)
+shell: powershell
+---
+
+# Deps — 檢查與更新依賴套件
 
 檢查 VocalForge KTV Studio 所有 Python 依賴的安裝狀態與版本。
 
@@ -29,9 +36,7 @@ py -c "import yt_dlp; print('yt-dlp updated to', yt_dlp.version.__version__)"
 py -m pip install --upgrade ruff pyright
 ```
 
-**5. （選用）更新全部**
-
-> 謹慎使用 — torch/demucs 升級可能破壞模型相容性
+**5. （選用）更新全部 — 謹慎使用，torch/demucs 升級可能破壞模型相容性**
 
 ```powershell
 # py -m pip install --upgrade customtkinter torch torchaudio demucs
